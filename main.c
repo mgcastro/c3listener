@@ -5,8 +5,8 @@
 #include <signal.h>
 #include <errno.h>
 #include "bluetooth.h"
-#include <bluetooth/hci.h>
-#include <bluetooth/hci_lib.h>
+#include "hci.h"
+#include "hci_lib.h"
 
 static volatile int signal_received = 0;
 
