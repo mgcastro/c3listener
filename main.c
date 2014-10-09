@@ -4,7 +4,7 @@
 #include <sys/socket.h>
 #include <signal.h>
 #include <errno.h>
-#include <bluetooth.h>
+#include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 
