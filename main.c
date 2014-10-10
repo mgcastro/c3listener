@@ -1,12 +1,21 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <signal.h>
+#include <string.h>
 #include <errno.h>
+
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
+
+#include <json-c/json.h>
+
+#define HOSTNAME_MAX_LEN 20
+
+char hostname[HOSTNAME_MAX_LEN+1] = {0};
 
 static volatile int signal_received = 0;
 
@@ -16,6 +25,11 @@ static void sigint_handler(int sig)
 }
 
 static int print_advertising_devices(int dd, uint8_t filter_type) {
+  json_object *ble_adv;
+  ble_adv = json_object_new_object();
+
+  time_t timestamp;
+
   unsigned char buf[HCI_MAX_EVENT_SIZE], *ptr;
   struct hci_filter nf, of;
   struct sigaction sa;
@@ -45,6 +59,7 @@ static int print_advertising_devices(int dd, uint8_t filter_type) {
   while (1) {
     evt_le_meta_event *meta;
     le_advertising_info *info;
+    
     char addr[18];
     
     while ((len = read(dd, buf, sizeof(buf))) < 0) {
@@ -57,7 +72,7 @@ static int print_advertising_devices(int dd, uint8_t filter_type) {
 	continue;
       goto done;
     }
-    
+    timestamp = time(NULL);
     ptr = buf + (1 + HCI_EVENT_HDR_SIZE);
     len -= (1 + HCI_EVENT_HDR_SIZE);
     
@@ -66,17 +81,30 @@ static int print_advertising_devices(int dd, uint8_t filter_type) {
     if (meta->subevent != 0x02)
       goto done;
     
-    /* Ignoring multiple reports */
-    info = (le_advertising_info *) (meta->data + 1);
-    char name[30];
+    int num_reports, offset = 0;
+    num_reports = meta->data[0];
+    printf("Num reports: %d\n", num_reports);
+    for (int i = 0; i < num_reports; i++) {
+      info = (le_advertising_info *) (meta->data + offset + 1);
+      
+      uint8_t data[info->length+2];
+      int rssi;
+      data[info->length] = 0;
+      memcpy(data, &info->data, info->length);
     
-    memset(name, 0, sizeof(name));
+      ba2str(&info->bdaddr, addr);
+      ble_adv = json_object_new_object();
+      json_object_object_add(ble_adv, "mac", json_object_new_string(addr));
+      json_object_object_add(ble_adv, "listener", json_object_new_string(hostname));
+      json_object_object_add(ble_adv, "timestamp", json_object_new_int(timestamp));
+      json_object_object_add(ble_adv, "data", json_object_new_string(data));
+      json_object_object_add(ble_adv, "evt_type", json_object_new_int(info->evt_type));
+      offset += info->length + 11;
+      rssi = *((int8_t*) (meta->data + offset - 1));
+      json_object_object_add(ble_adv, "rssi", json_object_new_int(rssi));
+    }
     
-    ba2str(&info->bdaddr, addr);
-    /* eir_parse_name(info->data, info->length,
-		   name, sizeof(name) - 1);
-    */
-    printf("%s %s\n", addr, name);
+    printf("%s\n", json_object_to_json_string(ble_adv));
 }
 
  done:
@@ -98,6 +126,8 @@ int main() {
   uint16_t interval = htobs(0x0010);
   uint16_t window = htobs(0x0010);
   uint8_t filter_dup = 1;
+
+  gethostname(hostname, HOSTNAME_MAX_LEN);
       
   interval = htobs(0x0012);
   window = htobs(0x0012);

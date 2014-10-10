@@ -1,2 +1,2 @@
 c3listener: main.c
-	$(CC) -o c3listener -lbluetooth main.c
+	$(CC) -std=gnu99 -o c3listener -lbluetooth -ljson-c main.c
