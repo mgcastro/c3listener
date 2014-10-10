@@ -102,9 +102,9 @@ static int print_advertising_devices(int dd, uint8_t filter_type) {
       offset += info->length + 11;
       rssi = *((int8_t*) (meta->data + offset - 1));
       json_object_object_add(ble_adv, "rssi", json_object_new_int(rssi));
+      printf("%s\n", json_object_to_json_string(ble_adv));
     }
     
-    printf("%s\n", json_object_to_json_string(ble_adv));
 }
 
  done:
