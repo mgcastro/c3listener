@@ -13,9 +13,15 @@
 
 #include <json-c/json.h>
 
+#include <curl/curl.h>
+
+//#define DEBUG
 #define HOSTNAME_MAX_LEN 20
+#define POST_URL "http://127.0.0.1/aggregator"
 
 char hostname[HOSTNAME_MAX_LEN+1] = {0};
+CURL *curl;
+struct curl_slist *headers=NULL;
 
 static volatile int signal_received = 0;
 
@@ -83,7 +89,9 @@ static int print_advertising_devices(int dd, uint8_t filter_type) {
     
     int num_reports, offset = 0;
     num_reports = meta->data[0];
+#ifdef DEBUG
     printf("Num reports: %d\n", num_reports);
+#endif /* DEBUG */
     for (int i = 0; i < num_reports; i++) {
       info = (le_advertising_info *) (meta->data + offset + 1);
       
@@ -97,12 +105,16 @@ static int print_advertising_devices(int dd, uint8_t filter_type) {
       json_object_object_add(ble_adv, "mac", json_object_new_string(addr));
       json_object_object_add(ble_adv, "listener", json_object_new_string(hostname));
       json_object_object_add(ble_adv, "timestamp", json_object_new_int(timestamp));
-      json_object_object_add(ble_adv, "data", json_object_new_string(data));
-      json_object_object_add(ble_adv, "evt_type", json_object_new_int(info->evt_type));
+      json_object_object_add(ble_adv, "data", json_object_new_string((const char *)data));
       offset += info->length + 11;
       rssi = *((int8_t*) (meta->data + offset - 1));
       json_object_object_add(ble_adv, "rssi", json_object_new_int(rssi));
+      curl_easy_setopt(curl, CURLOPT_URL, POST_URL);
+      curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_object_to_json_string(ble_adv));
+      curl_easy_perform(curl);
+#ifdef DEBUG
       printf("%s\n", json_object_to_json_string(ble_adv));
+#endif /* DEBUG */
     }
     
 }
@@ -118,7 +130,7 @@ static int print_advertising_devices(int dd, uint8_t filter_type) {
 
 int main() {
   int dev_id = 0;
-  int err, opt, dd;
+  int err, dd;
   uint8_t own_type = 0x00;
   uint8_t scan_type = 0x01;
   uint8_t filter_type = 0;
@@ -126,7 +138,15 @@ int main() {
   uint16_t interval = htobs(0x0010);
   uint16_t window = htobs(0x0010);
   uint8_t filter_dup = 1;
-
+  curl_global_init(CURL_GLOBAL_ALL);
+  curl = curl_easy_init();
+  if (!curl) {
+    perror("Couldn't initialize libcurl handle");
+    exit(1);
+  }
+  headers = curl_slist_append(headers, "Content-Type: text/json");
+  curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, 1);
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
   gethostname(hostname, HOSTNAME_MAX_LEN);
       
   interval = htobs(0x0012);
@@ -153,9 +173,11 @@ int main() {
     perror("Enable scan failed");
     exit(1);
   }
-  
+
+#ifdef DEBUG
   printf("LE Scan ...\n");
-  
+#endif /* DEBUG */
+
   err = print_advertising_devices(dd, filter_type);
   if (err < 0) {
     perror("Could not receive advertising events");
@@ -167,7 +189,8 @@ int main() {
     perror("Disable scan failed");
     exit(1);
   }
-  
+  curl_slist_free_all(headers);
+  curl_global_cleanup();
   hci_close_dev(dd);
   return 0;
 }
