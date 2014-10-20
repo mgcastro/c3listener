@@ -1,2 +1,3 @@
 #!/bin/sh
-autoreconf -fi || exit 1
+autoreconf -vfi
+
