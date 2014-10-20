@@ -8,6 +8,9 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
+#include "gettext.h"
+#define _(string) gettext (string)
+#include <locale.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -26,6 +29,8 @@
 #include <avahi-common/llist.h>
 #include <avahi-client/client.h>
 #include <avahi-client/lookup.h>
+
+#include <config.h>
 
 static AvahiSimplePoll *simple_poll = NULL;
 static AvahiClient *client = NULL;
@@ -55,7 +60,7 @@ static void host_name_resolver_callback(
 
         case AVAHI_RESOLVER_FAILURE:
 
-            fprintf(stderr, "Failed to resolve host name '%s': %s\n", name, avahi_strerror(avahi_client_errno(client)));
+	  fprintf(stderr, _("Failed to resolve host name: '%s': %s\n"), name, avahi_strerror(avahi_client_errno(client)));
             break;
     }
 
@@ -67,7 +72,7 @@ static void host_name_resolver_callback(
 static void client_callback(AvahiClient *c, AvahiClientState state, AVAHI_GCC_UNUSED void * userdata) {
     switch (state) {
         case AVAHI_CLIENT_FAILURE:
-            fprintf(stderr, "Client failure, exiting: %s\n", avahi_strerror(avahi_client_errno(c)));
+	  fprintf(stderr, _("Client failure, exiting: %s\n"), avahi_strerror(avahi_client_errno(c)));
             avahi_simple_poll_quit(simple_poll);
             break;
 
@@ -108,7 +113,7 @@ static int print_advertising_devices(int dd, uint8_t filter_type) {
   
   olen = sizeof(of);
   if (getsockopt(dd, SOL_HCI, HCI_FILTER, &of, &olen) < 0) {
-    printf("Could not get socket options\n");
+    printf(_("Could not get socket options\n"));
     return -1;
   }
   
@@ -117,7 +122,7 @@ static int print_advertising_devices(int dd, uint8_t filter_type) {
   hci_filter_set_event(EVT_LE_META_EVENT, &nf);
   
   if (setsockopt(dd, SOL_HCI, HCI_FILTER, &nf, sizeof(nf)) < 0) {
-    printf("Could not set socket options\n");
+    printf(_("Could not set socket options\n"));
     return -1;
   }
   
@@ -154,7 +159,7 @@ static int print_advertising_devices(int dd, uint8_t filter_type) {
     int num_reports, offset = 0;
     num_reports = meta->data[0];
 #ifdef DEBUG
-    printf("Num reports: %d\n", num_reports);
+    printf("_(Num reports:") " %d\n", num_reports);
 #endif /* DEBUG */
     for (int i = 0; i < num_reports; i++) {
       info = (le_advertising_info *) (meta->data + offset + 1);
@@ -166,13 +171,13 @@ static int print_advertising_devices(int dd, uint8_t filter_type) {
     
       ba2str(&info->bdaddr, addr);
       ble_adv = json_object_new_object();
-      json_object_object_add(ble_adv, "mac", json_object_new_string(addr));
-      json_object_object_add(ble_adv, "listener", json_object_new_string(hostname));
-      json_object_object_add(ble_adv, "timestamp", json_object_new_int(timestamp));
-      json_object_object_add(ble_adv, "data", json_object_new_string((const char *)data));
+      json_object_object_add(ble_adv, _("mac"), json_object_new_string(addr));
+      json_object_object_add(ble_adv, _("listener"), json_object_new_string(hostname));
+      json_object_object_add(ble_adv, _("timestamp"), json_object_new_int(timestamp));
+      json_object_object_add(ble_adv, _("data"), json_object_new_string((const char *)data));
       offset += info->length + 11;
       rssi = *((int8_t*) (meta->data + offset - 1));
-      json_object_object_add(ble_adv, "rssi", json_object_new_int(rssi));
+      json_object_object_add(ble_adv, _("rssi"), json_object_new_int(rssi));
       curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_object_to_json_string(ble_adv));
       curl_easy_perform(curl);
 #ifdef DEBUG
@@ -192,6 +197,10 @@ static int print_advertising_devices(int dd, uint8_t filter_type) {
 }
 
 int main() {
+  setlocale (LC_ALL, "");
+  bindtextdomain(PACKAGE,
+		  LOCALEDIR);
+  textdomain(PACKAGE);
   config_t cfg;
   int dev_id = 0;
   int err, dd;
@@ -210,25 +219,25 @@ int main() {
   config_init(&cfg);
   if(! config_read_file(&cfg, CONFIG_FILE))
   {
-    fprintf(stderr, "Problem with config file: %s: %s:%d - %s\n", CONFIG_FILE, config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
+    fprintf(stderr, _("Problem with config file: %s: %s:%d - %s\n"), CONFIG_FILE, config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
     config_destroy(&cfg);
     return(1);
   }
   if(config_lookup_bool(&cfg, "use_avahi", &use_avahi)) {
     if(use_avahi) {
       if(config_lookup_string(&cfg, "avahi_name", &avahi_server)) {
-	printf("Using Avahi/Zeroconf: trying to resolve %s\n", avahi_server);
+	printf(_("Using Avahi/Zeroconf: trying to resolve: %s\n"), avahi_server);
 	if (!(simple_poll = avahi_simple_poll_new())) {
-	  fprintf(stderr, "Failed to create simple poll object.\n");
+	  fprintf(stderr, _("Failed to create simple poll object.\n"));
 	  goto fail;
 	}
 
 	if (!(client = avahi_client_new(avahi_simple_poll_get(simple_poll), 0, client_callback, NULL, &error))) {
-	  fprintf(stderr, "Failed to create client object: %s\n", avahi_strerror(error));
+	  fprintf(stderr, _("Failed to create client object: %s\n"), avahi_strerror(error));
 	  goto fail;
 	}
 	if (!(avahi_host_name_resolver_new(client, AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC, avahi_server, AVAHI_PROTO_UNSPEC, 0, host_name_resolver_callback, NULL))) {
-	  fprintf(stderr, "Failed to create host name resolver: %s\n", avahi_strerror(avahi_client_errno(client)));
+	  fprintf(stderr, _("Failed to create host name resolver: %s\n"), avahi_strerror(avahi_client_errno(client)));
 	  goto fail;
 	}
 	avahi_simple_poll_loop(simple_poll);
@@ -239,9 +248,9 @@ int main() {
   }
   if(!use_avahi) {
     if(config_lookup_string(&cfg, "post_url", &post_url))
-      printf("Using static post from config file: %s\n\n", post_url);
+      printf(_("Using static post from config file: %s\n\n"), post_url);
     else {
-    fprintf(stderr, "No 'post_url' setting in configuration file.\n");
+      fprintf(stderr, _("No 'post_url' setting in configuration file.\n"));
     config_destroy(&cfg);
     return(1);
     }
@@ -250,7 +259,7 @@ int main() {
   curl_global_init(CURL_GLOBAL_ALL);
   curl = curl_easy_init();
   if (!curl) {
-    perror("Couldn't initialize libcurl handle");
+    perror(_("Couldn't initialize libcurl handle"));
     exit(1);
   }
   headers = curl_slist_append(headers, "Content-Type: application/json");
@@ -267,36 +276,36 @@ int main() {
   
   dd = hci_open_dev(dev_id);
   if (dd < 0) {
-    perror("Could not open device");
+    perror(_("Could not open bluetooth device"));
     exit(1);
   }
   
   err = hci_le_set_scan_parameters(dd, scan_type, interval, window,
 				   own_type, filter_policy, 1000);
   if (err < 0) {
-    perror("Set scan parameters failed");
+    perror(_("Set scan parameters failed"));
     exit(1);
   }
   
   err = hci_le_set_scan_enable(dd, 0x01, filter_dup, 1000);
   if (err < 0) {
-    perror("Enable scan failed");
+    perror(_("Enable scan failed"));
     exit(1);
   }
 
 #ifdef DEBUG
-  printf("LE Scan ...\n");
+  printf(_("Scanning ...")"\n");
 #endif /* DEBUG */
 
   err = print_advertising_devices(dd, filter_type);
   if (err < 0) {
-    perror("Could not receive advertising events");
+    perror(_("Could not receive advertising events"));
     exit(1);
   }
   
   err = hci_le_set_scan_enable(dd, 0x00, filter_dup, 1000);
   if (err < 0) {
-    perror("Disable scan failed");
+    perror(_("Disable scan failed"));
     exit(1);
   }
  fail:

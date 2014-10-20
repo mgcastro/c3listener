@@ -1,2 +1,4 @@
 c3listener
-
+*.o
+*~
+autom4te.cache
