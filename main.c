@@ -1,11 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <time.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <signal.h>
 #include <string.h>
 #include <errno.h>
+#include <assert.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -15,9 +17,71 @@
 
 #include <curl/curl.h>
 
+#include <libconfig.h>
+
+#include <avahi-common/simple-watch.h>
+#include <avahi-common/error.h>
+#include <avahi-common/malloc.h>
+#include <avahi-common/domain.h>
+#include <avahi-common/llist.h>
+#include <avahi-client/client.h>
+#include <avahi-client/lookup.h>
+
+static AvahiSimplePoll *simple_poll = NULL;
+static AvahiClient *client = NULL;
+
+static void host_name_resolver_callback(
+    AvahiHostNameResolver *r,
+    AVAHI_GCC_UNUSED AvahiIfIndex interface,
+    AVAHI_GCC_UNUSED AvahiProtocol protocol,
+    AvahiResolverEvent event,
+    const char *name,
+    const AvahiAddress *a,
+    AVAHI_GCC_UNUSED AvahiLookupResultFlags flags,
+    AVAHI_GCC_UNUSED void *userdata) {
+
+    assert(r);
+
+    switch (event) {
+        case AVAHI_RESOLVER_FOUND: {
+            char address[AVAHI_ADDRESS_STR_MAX];
+
+            avahi_address_snprint(address, sizeof(address), a);
+
+            printf("%s\t%s\n", name, address);
+
+            break;
+        }
+
+        case AVAHI_RESOLVER_FAILURE:
+
+            fprintf(stderr, "Failed to resolve host name '%s': %s\n", name, avahi_strerror(avahi_client_errno(client)));
+            break;
+    }
+
+
+    avahi_host_name_resolver_free(r);
+    avahi_simple_poll_quit(simple_poll);
+}
+
+static void client_callback(AvahiClient *c, AvahiClientState state, AVAHI_GCC_UNUSED void * userdata) {
+    switch (state) {
+        case AVAHI_CLIENT_FAILURE:
+            fprintf(stderr, "Client failure, exiting: %s\n", avahi_strerror(avahi_client_errno(c)));
+            avahi_simple_poll_quit(simple_poll);
+            break;
+
+        case AVAHI_CLIENT_S_REGISTERING:
+        case AVAHI_CLIENT_S_RUNNING:
+        case AVAHI_CLIENT_S_COLLISION:
+        case AVAHI_CLIENT_CONNECTING:
+            ;
+    }
+}
+
 //#define DEBUG
 #define HOSTNAME_MAX_LEN 20
-#define POST_URL "http://127.0.0.1/aggregator"
+#define CONFIG_FILE "/etc/c3listener.conf"
 
 char hostname[HOSTNAME_MAX_LEN+1] = {0};
 CURL *curl;
@@ -109,7 +173,6 @@ static int print_advertising_devices(int dd, uint8_t filter_type) {
       offset += info->length + 11;
       rssi = *((int8_t*) (meta->data + offset - 1));
       json_object_object_add(ble_adv, "rssi", json_object_new_int(rssi));
-      curl_easy_setopt(curl, CURLOPT_URL, POST_URL);
       curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_object_to_json_string(ble_adv));
       curl_easy_perform(curl);
 #ifdef DEBUG
@@ -129,6 +192,7 @@ static int print_advertising_devices(int dd, uint8_t filter_type) {
 }
 
 int main() {
+  config_t cfg;
   int dev_id = 0;
   int err, dd;
   uint8_t own_type = 0x00;
@@ -138,13 +202,59 @@ int main() {
   uint16_t interval = htobs(0x0010);
   uint16_t window = htobs(0x0010);
   uint8_t filter_dup = 1;
+  const char *post_url, *avahi_server;
+  int use_avahi = 0, ret = 1, error;
+  AvahiClient *client = NULL;
+  AvahiServiceBrowser *sb = NULL;
+
+  config_init(&cfg);
+  if(! config_read_file(&cfg, CONFIG_FILE))
+  {
+    fprintf(stderr, "Problem with config file: %s: %s:%d - %s\n", CONFIG_FILE, config_error_file(&cfg), config_error_line(&cfg), config_error_text(&cfg));
+    config_destroy(&cfg);
+    return(1);
+  }
+  if(config_lookup_bool(&cfg, "use_avahi", &use_avahi)) {
+    if(use_avahi) {
+      if(config_lookup_string(&cfg, "avahi_name", &avahi_server)) {
+	printf("Using Avahi/Zeroconf: trying to resolve %s\n", avahi_server);
+	if (!(simple_poll = avahi_simple_poll_new())) {
+	  fprintf(stderr, "Failed to create simple poll object.\n");
+	  goto fail;
+	}
+
+	if (!(client = avahi_client_new(avahi_simple_poll_get(simple_poll), 0, client_callback, NULL, &error))) {
+	  fprintf(stderr, "Failed to create client object: %s\n", avahi_strerror(error));
+	  goto fail;
+	}
+	if (!(avahi_host_name_resolver_new(client, AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC, avahi_server, AVAHI_PROTO_UNSPEC, 0, host_name_resolver_callback, NULL))) {
+	  fprintf(stderr, "Failed to create host name resolver: %s\n", avahi_strerror(avahi_client_errno(client)));
+	  goto fail;
+	}
+	avahi_simple_poll_loop(simple_poll);
+      }
+      else
+	use_avahi = 0;
+    }
+  }
+  if(!use_avahi) {
+    if(config_lookup_string(&cfg, "post_url", &post_url))
+      printf("Using static post from config file: %s\n\n", post_url);
+    else {
+    fprintf(stderr, "No 'post_url' setting in configuration file.\n");
+    config_destroy(&cfg);
+    return(1);
+    }
+  }
+
   curl_global_init(CURL_GLOBAL_ALL);
   curl = curl_easy_init();
   if (!curl) {
     perror("Couldn't initialize libcurl handle");
     exit(1);
   }
-  headers = curl_slist_append(headers, "Content-Type: text/json");
+  headers = curl_slist_append(headers, "Content-Type: application/json");
+  curl_easy_setopt(curl, CURLOPT_URL, post_url);
   curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, 1);
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
   gethostname(hostname, HOSTNAME_MAX_LEN);
@@ -189,8 +299,18 @@ int main() {
     perror("Disable scan failed");
     exit(1);
   }
+ fail:
+  if (sb)
+    avahi_service_browser_free(sb);
+  
+  if (client)
+    avahi_client_free(client);
+  
+  if (simple_poll)
+    avahi_simple_poll_free(simple_poll);
+  
   curl_slist_free_all(headers);
   curl_global_cleanup();
   hci_close_dev(dd);
-  return 0;
+  return ret;
 }
