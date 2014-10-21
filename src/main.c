@@ -1,5 +1,6 @@
-#include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <stdbool.h>
 #include <time.h>
 #include <unistd.h>
@@ -8,9 +9,18 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
+
+#include <config.h>
+
+#ifdef HAVE_GETTEXT
 #include "gettext.h"
 #define _(string) gettext (string)
+#else
+#define _(string) string
+#endif /* HAVE_GETTEXT */
+#ifdef HAVE_LOCALE_H
 #include <locale.h>
+#endif /* HAVE_LOCALE_H */
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -22,6 +32,13 @@
 
 #include <libconfig.h>
 
+
+/* Global variables */
+#define MAX_URL 100
+bool configured = false;
+const char *post_url_template, *post_url;
+
+#if defined(HAVE_AVAHI_COMMON) && defined(HAVE_AVAHI_CLIENT)
 #include <avahi-common/simple-watch.h>
 #include <avahi-common/error.h>
 #include <avahi-common/malloc.h>
@@ -29,8 +46,6 @@
 #include <avahi-common/llist.h>
 #include <avahi-client/client.h>
 #include <avahi-client/lookup.h>
-
-#include <config.h>
 
 static AvahiSimplePoll *simple_poll = NULL;
 static AvahiClient *client = NULL;
@@ -48,22 +63,24 @@ static void host_name_resolver_callback(
     assert(r);
 
     switch (event) {
-        case AVAHI_RESOLVER_FOUND: {
-            char address[AVAHI_ADDRESS_STR_MAX];
-
-            avahi_address_snprint(address, sizeof(address), a);
-
-            printf("%s\t%s\n", name, address);
-
-            break;
-        }
-
-        case AVAHI_RESOLVER_FAILURE:
-
-	  fprintf(stderr, _("Failed to resolve host name: '%s': %s\n"), name, avahi_strerror(avahi_client_errno(client)));
-            break;
+    case AVAHI_RESOLVER_FOUND: {
+      char address[AVAHI_ADDRESS_STR_MAX];
+      
+      avahi_address_snprint(address, sizeof(address), a);
+      
+      printf("%s\t%s\n", name, address);
+      
+      sprintf(&post_url, post_url_template, address);
+      configured = true;
+      break;
     }
 
+    case AVAHI_RESOLVER_FAILURE:
+      
+      fprintf(stderr, _("Failed to resolve host name: '%s': %s\n"), name, avahi_strerror(avahi_client_errno(client)));
+	  
+      break;
+    }
 
     avahi_host_name_resolver_free(r);
     avahi_simple_poll_quit(simple_poll);
@@ -83,8 +100,8 @@ static void client_callback(AvahiClient *c, AvahiClientState state, AVAHI_GCC_UN
             ;
     }
 }
+#endif /* HAVE_AVAHI_COMMON && HAVE_AVAHI_CLIENT */
 
-//#define DEBUG
 #define HOSTNAME_MAX_LEN 20
 #define CONFIG_FILE "/etc/c3listener.conf"
 
@@ -197,10 +214,15 @@ static int print_advertising_devices(int dd, uint8_t filter_type) {
 }
 
 int main() {
+#ifdef HAVE_SETLOCALE
   setlocale (LC_ALL, "");
+#endif /* HAVE_SETLOCALE */
+#ifdef HAVE_GETTEXT
   bindtextdomain(PACKAGE,
 		  LOCALEDIR);
   textdomain(PACKAGE);
+#endif /* HAVE_GETTEXT */
+
   config_t cfg;
   int dev_id = 0;
   int err, dd;
@@ -211,10 +233,8 @@ int main() {
   uint16_t interval = htobs(0x0010);
   uint16_t window = htobs(0x0010);
   uint8_t filter_dup = 1;
-  const char *post_url, *avahi_server;
-  int use_avahi = 0, ret = 1, error;
-  AvahiClient *client = NULL;
-  AvahiServiceBrowser *sb = NULL;
+
+  int ret=1, error;
 
   config_init(&cfg);
   if(! config_read_file(&cfg, CONFIG_FILE))
@@ -223,15 +243,21 @@ int main() {
     config_destroy(&cfg);
     return(1);
   }
-  if(config_lookup_bool(&cfg, "use_avahi", &use_avahi)) {
-    if(use_avahi) {
-      if(config_lookup_string(&cfg, "avahi_name", &avahi_server)) {
+#if defined(HAVE_AVAHI_COMMON) && defined(HAVE_AVAHI_CLIENT)
+  int use_avahi;
+  AvahiClient *client = NULL;
+  AvahiServiceBrowser *sb = NULL;
+  char *avahi_server;
+  
+  if(config_lookup_bool(&cfg, "use_avahi", &use_avahi) && use_avahi) {
+    if(config_lookup_string(&cfg, "avahi_name", &avahi_server))
+      if(config_lookup_string(&cfg, "post_url_template", &post_url_template)) {
 	printf(_("Using Avahi/Zeroconf: trying to resolve: %s\n"), avahi_server);
 	if (!(simple_poll = avahi_simple_poll_new())) {
 	  fprintf(stderr, _("Failed to create simple poll object.\n"));
 	  goto fail;
 	}
-
+	
 	if (!(client = avahi_client_new(avahi_simple_poll_get(simple_poll), 0, client_callback, NULL, &error))) {
 	  fprintf(stderr, _("Failed to create client object: %s\n"), avahi_strerror(error));
 	  goto fail;
@@ -240,19 +266,23 @@ int main() {
 	  fprintf(stderr, _("Failed to create host name resolver: %s\n"), avahi_strerror(avahi_client_errno(client)));
 	  goto fail;
 	}
+	/* Configuration happens (or not) during this poll loop via
+	   the host_name_resolver_callback function */
 	avahi_simple_poll_loop(simple_poll);
       }
-      else
-	use_avahi = 0;
-    }
+      else {
+	fprintf(stderr, _("Avahi configuration failed, no post_url_template in config file.\n"), avahi_strerror(error));
+	goto fail;
+      }
   }
-  if(!use_avahi) {
+#endif /* defined(HAVE_AVAHI_COMMON) && defined(HAVE_AVAHI_CLIENT) */
+  
+  if(!configured) {
     if(config_lookup_string(&cfg, "post_url", &post_url))
-      printf(_("Using static post from config file: %s\n\n"), post_url);
+      printf(_("Using static url: %s\n"), post_url);
     else {
       fprintf(stderr, _("No 'post_url' setting in configuration file.\n"));
-    config_destroy(&cfg);
-    return(1);
+      goto fail;
     }
   }
 
@@ -309,6 +339,10 @@ int main() {
     exit(1);
   }
  fail:
+
+  config_destroy(&cfg);
+
+#if defined(HAVE_AVAHI_COMMON) && defined(HAVE_AVAHI_CLIENT)
   if (sb)
     avahi_service_browser_free(sb);
   
@@ -317,7 +351,8 @@ int main() {
   
   if (simple_poll)
     avahi_simple_poll_free(simple_poll);
-  
+#endif /* defined(HAVE_AVAHI_COMMON) && defined(HAVE_AVAHI_CLIENT) */
+
   curl_slist_free_all(headers);
   curl_global_cleanup();
   hci_close_dev(dd);

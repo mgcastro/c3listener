@@ -1,34 +1,40 @@
-AC_INIT([c3listener],[1.1],[nock@nocko.se])
+AC_PREREQ([2.69])
+AC_INIT([c3listener],[1.2],[nock@nocko.se])
 AM_INIT_AUTOMAKE([foreign subdir-objects])
 AC_CONFIG_SRCDIR([config.h.in])
 AC_CONFIG_HEADERS([config.h])
+AC_USE_SYSTEM_EXTENSIONS
 
 # Gettext
-AM_GNU_GETTEXT_VERSION([0.17])
+AM_GNU_GETTEXT_VERSION([0.19])
 AM_GNU_GETTEXT([external])
 
 # Checks for programs.
 AC_PROG_CC_C99
 
 # Checks for libraries.
-AC_CHECK_LIB([config], [config_init])
-AC_CHECK_LIB([bluetooth], [hci_open_dev])
+AC_CHECK_LIB([config], [config_init],[],[AC_MSG_ERROR('missing libconfig',1)])
+AC_CHECK_LIB([bluetooth], [hci_open_dev],[],[AC_MSG_ERROR('missing libbluetooth',1)])
 AC_CHECK_LIB([avahi-common], [avahi_strerror])
 AC_CHECK_LIB([avahi-client], [avahi_client_get_version_string])
-AC_CHECK_LIB([curl], [curl_global_init])
-AC_CHECK_LIB([json-c], [json_object_new_object])
+AC_CHECK_LIB([curl], [curl_global_init],[],[AC_MSG_ERROR('missing libcurl',1)])
+AC_CHECK_LIB([json-c], [json_object_new_object],[],[AC_MSG_ERROR('missing libjson-c',1)])
 
 
 # Checks for header files.
-AC_CHECK_HEADERS([stdint.h stdlib.h string.h sys/socket.h unistd.h bluetooth/bluetooth.h json-c/json.h curl/curl.h libconfig.h avahi-common/simple-watch.h avahi-common/error.h avahi-common/malloc.h avahi-common/domain.h avahi-common/llist.h avahi-client/client.h avahi-client/lookup.h])
+AC_CHECK_HEADERS([libintl.h locale.h stdlib.h string.h sys/socket.h unistd.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
+AC_C_INLINE
 AC_TYPE_INT8_T
+AC_TYPE_SIZE_T
 AC_TYPE_UINT16_T
 AC_TYPE_UINT8_T
 
 # Checks for library functions.
-AC_CHECK_FUNCS([gethostname])
+AM_GNU_GETTEXT
+AC_FUNC_MALLOC
+AC_CHECK_FUNCS([gethostname memset setlocale ])
 
 AC_CONFIG_FILES([Makefile po/Makefile.in
                  src/Makefile])
