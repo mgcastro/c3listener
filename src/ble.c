@@ -1,4 +1,32 @@
-static int scan_loop(int dd, uint8_t filter_type) {
+#include <stdint.h>
+#include <stdbool.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <signal.h>
+#include <time.h>
+
+#include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h>
+#include <bluetooth/hci_lib.h>
+
+#include <json-c/json.h>
+
+#include <curl/curl.h>
+extern CURL* curl;
+
+#include "c3listener.h"
+extern c3_config_t m_config;
+
+#ifdef HAVE_GETTEXT
+#include "gettext.h"
+#define _(string) gettext(string)
+#else
+#define _(string) string
+#endif /* HAVE_GETTEXT */
+
+int ble_scan_loop(int dd, uint8_t filter_type) {
+  int ret = ERR_SUCCESS, signal_received;
+  time_t timestamp;
   /* Initialize Curl */
   m_curl_init();
   
@@ -22,8 +50,7 @@ static int scan_loop(int dd, uint8_t filter_type) {
 
   if (setsockopt(dd, SOL_HCI, HCI_FILTER, &nf, sizeof(nf)) < 0) {
     perror(_("Could not set socket options\n"));
-    ret = ERR_BLUEZ_SOCKET;
-    goto cleanup;
+    m_cleanup(ERR_BLUEZ_SOCKET);
   }
 
   while (1) {
@@ -66,7 +93,7 @@ static int scan_loop(int dd, uint8_t filter_type) {
       ble_adv = json_object_new_object();
       json_object_object_add(ble_adv, _("mac"), json_object_new_string(addr));
       json_object_object_add(ble_adv, _("listener"),
-                             json_object_new_string(hostname));
+                             json_object_new_string(m_config.hostname));
       json_object_object_add(ble_adv, _("timestamp"),
                              json_object_new_int(timestamp));
       json_object_object_add(ble_adv, _("data"),
