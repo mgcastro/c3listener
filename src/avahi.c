@@ -8,8 +8,6 @@
 
 #include "c3listener.h"
 
-extern int ret;
-
 static AvahiSimplePoll *simple_poll = NULL;
 static AvahiClient *client = NULL;
 
@@ -67,51 +65,47 @@ static void client_callback(AvahiClient *c, AvahiClientState state,
 }
 
 AvahiServiceBrowser *sb = NULL;
-void configure_via_avahi(config_t *cfg) {
-  int config_use_avahi;
+int configure_via_avahi(config_t *cfg) {
   AvahiClient *client = NULL;
-  const char *config_avahi_server;
   int error;
 
-  if (config_lookup_bool(cfg, "use_avahi", &m_config.use_avahi) && m_config.use_avahi) {
-    if (config_lookup_string(cfg, "avahi_name", &m_config.avahi_server))
-      if (config_lookup_string(cfg, "post_url_template", &m_config.post_url_template)) {
-        printf(_("Using Avahi/Zeroconf: trying to resolve: %s\n"),
-               config_avahi_server);
-        if (!(simple_poll = avahi_simple_poll_new())) {
-          fprintf(stderr, _("Failed to create simple poll object.\n"));
-          m_cleanup(ERR_AVAHI_FAIL);
-        }
+  if (config_lookup_string(cfg, "avahi_name", &m_config.avahi_server) &&
+      config_lookup_string(cfg, "post_url_template", &m_config.post_url_template)) {
+    /* If we have all the config info needed for avahi name
+       resolution, then proceed */
+    printf(_("Using Avahi/Zeroconf: trying to resolve: %s\n"),
+	   m_config.avahi_server);
+    if (!(simple_poll = avahi_simple_poll_new())) {
+      fprintf(stderr, _("Failed to create simple poll object.\n"));
+      errno = ENOMEM
+      return -1;
+    }
 
-        while (!(client = avahi_client_new(avahi_simple_poll_get(simple_poll), 0,
-					   client_callback, NULL, &error)));
-        if (!(avahi_host_name_resolver_new(
-                client, AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC, m_config.avahi_server,
-                AVAHI_PROTO_UNSPEC, 0, host_name_resolver_callback, NULL))) {
-          fprintf(stderr, _("Failed to create host name resolver: %s\n"),
-                  avahi_strerror(avahi_client_errno(client)));
-          m_cleanup(ERR_AVAHI_FAIL);
-        }
-        /* Configuration happens (or not) during this poll loop via
-           the host_name_resolver_callback function */
-        avahi_simple_poll_loop(simple_poll);
-      } else {
-        fprintf(stderr, _("Avahi configuration failed, no post_url_template in "
-                          "config file.\n"),
-                avahi_strerror(error));
-        m_cleanup(ERR_BAD_CONFIG);
-      }
+    /* avahi_client_new seems to intermittantly return a null client,
+       keep trying until we get a valid one */
+    client = avahi_client_new(avahi_simple_poll_get(simple_poll), 0,
+				       client_callback, NULL, &error);
+    if (!client) {
+      fprintf(stderr, _("Failed to create host name resolver: %s\n"),
+	      avahi_strerror(avahi_client_errno(client)));
+      errno = avahi_client_errno(client);
+      return -1;
+    }
+    if (!(avahi_host_name_resolver_new(client, AVAHI_IF_UNSPEC,
+				       AVAHI_PROTO_UNSPEC, m_config.avahi_server,
+				       AVAHI_PROTO_UNSPEC, 0, host_name_resolver_callback,
+				       NULL))) {
+      fprintf(stderr, _("Failed to create host name resolver: %s\n"),
+	      avahi_strerror(avahi_client_errno(client)));
+      errno = avahi_client_errno(client);
+      return -1;
+    }
+    /* Configuration happens (or not) during this poll loop via
+       the host_name_resolver_callback function */
+    avahi_simple_poll_loop(simple_poll);
+  } else {
+    fprintf(stderr, _("Avahi configuration failed, no \"post_url_template\" or \"avahi_name\" in config file.\n"));
+    errno = EINVAL;
+    return -1;
   }
-}
-
-int cleanup_avahi(void) {
-  if (sb)
-    avahi_service_browser_free(sb);
-
-  if (client)
-    avahi_client_free(client);
-
-  if (simple_poll)
-    avahi_simple_poll_free(simple_poll);
-  return 0;
 }

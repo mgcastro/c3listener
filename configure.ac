@@ -15,8 +15,14 @@ AC_PROG_CC_C99
 # Checks for libraries.
 AC_CHECK_LIB([config], [config_init],[],[AC_MSG_ERROR('missing libconfig',1)])
 AC_CHECK_LIB([bluetooth], [hci_open_dev],[],[AC_MSG_ERROR('missing libbluetooth',1)])
-AC_CHECK_LIB([avahi-common], [avahi_strerror])
-AC_CHECK_LIB([avahi-client], [avahi_client_get_version_string])
+AC_ARG_ENABLE([avahi],
+    AS_HELP_STRING([--enable-avahi], [Enable hostname resolution via avahi mdns]))
+
+AS_IF([test "x$enable_avahi" = "xyes"], [
+	    AC_CHECK_LIB([avahi-common], [avahi_strerror],[],[AC_MSG_ERROR('missing libavahi-common',1)])
+	    AC_CHECK_LIB([avahi-client], [avahi_client_get_version_string],[],[AC_MSG_ERROR('missing libavahi-client',1)])
+	    AC_DEFINE([HAVE_AVAHI], [1], [Define if Avahi exists and is enabled.])
+])
 AC_CHECK_LIB([curl], [curl_global_init],[],[AC_MSG_ERROR('missing libcurl',1)])
 AC_CHECK_LIB([json-c], [json_object_new_object],[],[AC_MSG_ERROR('missing libjson-c',1)])
 

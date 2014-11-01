@@ -1,9 +1,10 @@
+#include <errno.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <errno.h>
 #include <stdlib.h>
 #include <signal.h>
 #include <time.h>
+#include <unistd.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -25,10 +26,13 @@ extern c3_config_t m_config;
 #endif /* HAVE_GETTEXT */
 
 int ble_scan_loop(int dd, uint8_t filter_type) {
-  int ret = ERR_SUCCESS, signal_received;
+  int ret = ERR_SUCCESS;
   time_t timestamp;
   /* Initialize Curl */
-  m_curl_init();
+  if (ret = m_curl_init() < 0) {
+    perror(_("Couldn't initialize libcurl"));
+    return -1;
+  }
   
   json_object *ble_adv;
   ble_adv = json_object_new_object();
@@ -40,7 +44,7 @@ int ble_scan_loop(int dd, uint8_t filter_type) {
 
   olen = sizeof(of);
   if (getsockopt(dd, SOL_HCI, HCI_FILTER, &of, &olen) < 0) {
-    printf(_("Could not get socket options\n"));
+    perror(_("Could not get socket options"));
     return -1;
   }
 
@@ -49,8 +53,8 @@ int ble_scan_loop(int dd, uint8_t filter_type) {
   hci_filter_set_event(EVT_LE_META_EVENT, &nf);
 
   if (setsockopt(dd, SOL_HCI, HCI_FILTER, &nf, sizeof(nf)) < 0) {
-    perror(_("Could not set socket options\n"));
-    m_cleanup(ERR_BLUEZ_SOCKET);
+    perror(_("Could not set socket options"));
+    return -1;
   }
 
   while (1) {
@@ -60,13 +64,15 @@ int ble_scan_loop(int dd, uint8_t filter_type) {
     char addr[18];
 
     while ((len = read(dd, buf, sizeof(buf))) < 0) {
-      if (errno == EINTR && signal_received == SIGINT) {
+      if (errno == EINTR) {
+	perror(_("HCI Socket read interrupted"));
         len = 0;
         goto done;
       }
 
-      if (errno == EAGAIN || errno == EINTR)
+      if (errno == EAGAIN)
         continue;
+      perror(_("Unknown HCI socket error"));
       goto done;
     }
     timestamp = time(NULL);
@@ -75,8 +81,10 @@ int ble_scan_loop(int dd, uint8_t filter_type) {
 
     meta = (void *)ptr;
 
-    if (meta->subevent != 0x02)
+    if (meta->subevent != 0x02) {
+      printf(_("Failed to set HCI Socket Filter"));
       goto done;
+    }
 
     int num_reports, offset = 0;
     num_reports = meta->data[0];
@@ -104,17 +112,16 @@ int ble_scan_loop(int dd, uint8_t filter_type) {
       curl_easy_setopt(curl, CURLOPT_POSTFIELDS,
                        json_object_to_json_string(ble_adv));
       curl_easy_perform(curl);
-#ifdef DEBUG
-      printf("%s\n", json_object_to_json_string(ble_adv));
-#endif /* DEBUG */
+      log_stdout("%s\n", json_object_to_json_string(ble_adv));
     }
   }
 
-done:
+ done:
   setsockopt(dd, SOL_HCI, HCI_FILTER, &of, sizeof(of));
-
+  
   if (len < 0)
+    perror("WTF");
     return -1;
-
+  
   return 0;
 }

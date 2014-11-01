@@ -4,15 +4,15 @@
 #define HOSTNAME_MAX_LEN 255
 
 int ble_scan_loop(int, uint8_t);
-void m_cleanup(int);
-void m_curl_init(void);
+int m_cleanup(int);
+int m_curl_init(void);
 
 typedef struct configuration {
   char *post_url;
   const char *post_url_template, *static_post_url;
   int max_events, max_wait;
   bool configured;
-  char *hostname;
+  char hostname[HOSTNAME_MAX_LEN], *config_file;
 #if defined(HAVE_LIBAVAHI_COMMON) && defined(HAVE_LIBAVAHI_CLIENT)
   int use_avahi;
   const char *avahi_server;
