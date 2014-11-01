@@ -25,6 +25,16 @@ extern c3_config_t m_config;
 #define _(string) string
 #endif /* HAVE_GETTEXT */
 
+static void hexlify(uint8_t* dest, const uint8_t* src, size_t n) {
+  memset(dest, 0, n*2+1); 
+  uint8_t buf[3] = {0};
+  for(int i = 0; i < n; i++) {
+    sprintf((char *)&buf, "%.2x", src[i]);
+    strncat((char *)dest, (char *)&buf, 2);
+  }
+  return;
+}
+
 int ble_scan_loop(int dd, uint8_t filter_type) {
   int ret = ERR_SUCCESS;
   time_t timestamp;
@@ -92,10 +102,12 @@ int ble_scan_loop(int dd, uint8_t filter_type) {
     for (int i = 0; i < num_reports; i++) {
       info = (le_advertising_info *)(meta->data + offset + 1);
 
-      uint8_t data[info->length + 2];
+      uint8_t data[info->length + 2], hdata[info->length*2+1];
+      
       int rssi;
-      data[info->length] = 0;
+      data[info->length+1] = 0;
       memcpy(data, &info->data, info->length);
+      hexlify(hdata, data, info->length);
 
       ba2str(&info->bdaddr, addr);
       ble_adv = json_object_new_object();
@@ -105,7 +117,7 @@ int ble_scan_loop(int dd, uint8_t filter_type) {
       json_object_object_add(ble_adv, _("timestamp"),
                              json_object_new_int(timestamp));
       json_object_object_add(ble_adv, _("data"),
-                             json_object_new_string((const char *)data));
+                             json_object_new_string((const char *)hdata));
       offset += info->length + 11;
       rssi = *((int8_t *)(meta->data + offset - 1));
       json_object_object_add(ble_adv, _("rssi"), json_object_new_int(rssi));
