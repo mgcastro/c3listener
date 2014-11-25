@@ -35,16 +35,24 @@ static void hexlify(uint8_t* dest, const uint8_t* src, size_t n) {
   return;
 }
 
+int log_response(void *contents, size_t size, size_t nmemb, void *userp){
+    char *resp_part = malloc(size*nmemb+1);
+    memcpy(resp_part, contents, size*nmemb+1);
+    log_stdout("\t%s", resp_part);
+    return size * nmemb;
+}
+
 int ble_scan_loop(int dd, uint8_t filter_type) {
   int ret = ERR_SUCCESS;
   time_t timestamp;
+
   /* Initialize Curl */
   if (ret = m_curl_init() < 0) {
     perror(_("Couldn't initialize libcurl"));
     return -1;
   }
   
-  json_object *ble_adv;
+  json_object *ble_adv, *array;
   ble_adv = json_object_new_object();
 
   unsigned char buf[HCI_MAX_EVENT_SIZE], *ptr;
@@ -121,10 +129,17 @@ int ble_scan_loop(int dd, uint8_t filter_type) {
       offset += info->length + 11;
       rssi = *((int8_t *)(meta->data + offset - 1));
       json_object_object_add(ble_adv, _("rssi"), json_object_new_int(rssi));
+      array = json_object_new_array();
+      json_object_array_add(array, ble_adv);
       curl_easy_setopt(curl, CURLOPT_POSTFIELDS,
-                       json_object_to_json_string(ble_adv));
-      curl_easy_perform(curl);
-      log_stdout("%s\n", json_object_to_json_string(ble_adv));
+                       json_object_to_json_string(array));
+      curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE);
+      curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, log_response);
+      CURLcode res = curl_easy_perform(curl);
+      if (res != CURLE_OK) {
+        fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+      }
+      log_stdout("\n\n%s\n", json_object_to_json_string(array));
     }
   }
 

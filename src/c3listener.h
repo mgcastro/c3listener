@@ -6,6 +6,7 @@
 int ble_scan_loop(int, uint8_t);
 int m_cleanup(int);
 int m_curl_init(void);
+void log_stdout(const char *, ...);
 
 typedef struct configuration {
   char *post_url;
