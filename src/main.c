@@ -39,13 +39,6 @@ sigint_handler (int signum)
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 int dd = 0;
-uint8_t filter_dup = 1;
-
-#include <json-c/json.h>
-
-#include <curl/curl.h>
-CURL *curl;
-struct curl_slist *headers = NULL;
 
 #include <libconfig.h>
 config_t cfg;
@@ -53,10 +46,6 @@ config_t cfg;
 /* Global config */
 c3_config_t m_config = {.configured = false };
 static int verbose_flag;
-
-#if defined(HAVE_LIBAVAHI_COMMON) && defined(HAVE_LIBAVAHI_CLIENT)
-#include "avahi.c"
-#endif /* HAVE_LIBAVAHI_COMMON && HAVE_LIBAVAHI_CLIENT */
 
 void log_stdout(const char *format, ...) {
   if (verbose_flag) {
@@ -140,10 +129,8 @@ int main(int argc, char **argv) {
   uint8_t scan_type = 0x01;
   uint8_t filter_type = 0;
   uint8_t filter_policy = 0x00;
-  uint16_t interval = htobs(0x0010);
-  uint16_t window = htobs(0x0010);
-  interval = htobs(0x0012);
-  window = htobs(0x0012);
+  uint16_t interval = htobs(0x00F0); 
+  uint16_t window = htobs(0x00F0); 
 
   if (dev_id < 0)
     dev_id = hci_get_route(NULL);
@@ -156,14 +143,15 @@ int main(int argc, char **argv) {
   }
 
   err = hci_le_set_scan_parameters(dd, scan_type, interval, window, own_type,
-                                   filter_policy, 1000);
+                                   filter_policy, 100);
   if (err < 0) {
     perror(_("Set scan parameters failed"));
     ret = ERR_SCAN_ENABLE_FAIL;
     goto cleanup;
   }
 
-  err = hci_le_set_scan_enable(dd, 0x01, filter_dup, 1000);
+  uint8_t filter_dup = 0;
+  err = hci_le_set_scan_enable(dd, 0x1, filter_dup, 100);
   if (err < 0) {
     perror(_("Enable scan failed"));
     ret = ERR_SCAN_ENABLE_FAIL;
@@ -187,23 +175,27 @@ int main(int argc, char **argv) {
     goto cleanup;
   }
 
-#if defined(HAVE_LIBAVAHI_COMMON) && defined(HAVE_LIBAVAHI_CLIENT)
-  configure_via_avahi(&cfg);
-#endif /* defined(HAVE_LIBAVAHI_COMMON) && defined(HAVE_LIBAVAHI_CLIENT) */
-
   if (!m_config.configured) {
-    if (config_lookup_string(&cfg, "post_url", (const char**)&m_config.post_url)) {
+    if (config_lookup_string(&cfg, "ip", (const char**)&m_config.ip)) {
       if (verbose_flag)
-	printf(_("Using static url: %s\n"), m_config.post_url);
+	printf(_("Using ip: %s\n"), m_config.ip);
       m_config.configured = true;
     }
     else {
-      fprintf(stderr, "No 'post_url' setting in configuration file.\n");
-      ret = ERR_BAD_CONFIG;
-      goto cleanup;
+      fprintf(stderr, "No 'ip' setting in configuration file, using 127.0.0.1.\n");
+      m_config.ip = "127.0.0.1";
+    }
+    if (config_lookup_int(&cfg, "port", (int*)&m_config.port)) {
+      if (verbose_flag)
+	printf(_("Using port: %d\n"), m_config.port);
+      m_config.configured = true;
+    }
+    else {
+      fprintf(stderr, "No 'port' setting in configuration file, using 9999.\n");
+      m_config.port = 9999;
     }
   }
-  
+  gethostname(m_config.hostname, HOSTNAME_MAX_LEN);
   /* Loop through scan results */
   err = ble_scan_loop(dd, filter_type);
   if (err < 0) {
@@ -211,37 +203,12 @@ int main(int argc, char **argv) {
     ret = ERR_SCAN_FAIL;
     goto cleanup;
   }
+ 
  cleanup:
   config_destroy(&cfg);
   free(m_config.config_file);
-  curl_slist_free_all(headers);
-  curl_global_cleanup();
   hci_le_set_scan_enable(dd, 0x00, filter_dup, 1000);
   hci_close_dev(dd);
-#if defined(HAVE_LIBAVAHI_COMMON) && defined(HAVE_LIBAVAHI_CLIENT)
-  if (sb)
-    avahi_service_browser_free(sb);
-
-  if (client)
-    avahi_client_free(client);
-
-  if (simple_poll)
-    avahi_simple_poll_free(simple_poll);
-#endif /* defined(HAVE_LIBAVAHI_COMMON) && defined(HAVE_LIBAVAHI_CLIENT) */
   return ret;
 }
 
-int m_curl_init(void) {
-  curl_global_init(CURL_GLOBAL_ALL);
-  curl = curl_easy_init();
-  if (!curl) {
-    perror(_("Couldn't initialize libcurl handle"));
-    return -1;
-  }
-  headers = curl_slist_append(headers, "Content-Type: application/json");
-  curl_easy_setopt(curl, CURLOPT_URL, m_config.post_url);
-  curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, 1);
-  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-  gethostname(m_config.hostname, HOSTNAME_MAX_LEN);
-  return 0;
-}
