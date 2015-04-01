@@ -2,11 +2,13 @@
 #define C3LISTENER_H
 
 #define HOSTNAME_MAX_LEN 255
+#define MAX_NET_PACKET 64
 
 int ble_scan_loop(int, uint8_t);
 int m_cleanup(int);
-int m_curl_init(void);
 void log_stdout(const char *, ...);
+int udp_send(char *, uint8_t);
+void init_udp(char *, int);
 
 typedef struct configuration {
   char *ip;
@@ -16,8 +18,9 @@ typedef struct configuration {
 } c3_config_t;
 
 typedef struct advdata {
-  char *mac,
-    *data;
+  char mac[6];
+  char data[3];
+  int data_len;
   int rssi;
 } adv_data_t;
 

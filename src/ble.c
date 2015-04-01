@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <signal.h>
-#include <time.h>
 #include <unistd.h>
 
 #include <bluetooth/bluetooth.h>
@@ -20,19 +19,18 @@ extern c3_config_t m_config;
 #define _(string) string
 #endif /* HAVE_GETTEXT */
 
-static void hexlify(uint8_t* dest, const uint8_t* src, size_t n) {
-  memset(dest, 0, n*2+1); 
-  uint8_t buf[3] = {0};
-  for(int i = 0; i < n; i++) {
-    sprintf((char *)&buf, "%.2x", src[i]);
-    strncat((char *)dest, (char *)&buf, 2);
-  }
-  return;
-}
+/* static void hexlify(uint8_t* dest, const uint8_t* src, size_t n) { */
+/*   memset(dest, 0, n*2+1);  */
+/*   uint8_t buf[3] = {0}; */
+/*   for(int i = 0; i < n; i++) { */
+/*     sprintf((char *)&buf, "%.2x", src[i]); */
+/*     strncat((char *)dest, (char *)&buf, 2); */
+/*   } */
+/*   return; */
+/* } */
 
 int ble_scan_loop(int dd, uint8_t filter_type) {
-  int ret = ERR_SUCCESS;
-  time_t timestamp;
+  //int ret = ERR_SUCCESS;
 
   unsigned char buf[HCI_MAX_EVENT_SIZE], *ptr;
   struct hci_filter nf, of;
@@ -72,7 +70,6 @@ int ble_scan_loop(int dd, uint8_t filter_type) {
       perror(_("Unknown HCI socket error"));
       goto done;
     }
-    timestamp = time(NULL);
     ptr = buf + (1 + HCI_EVENT_HDR_SIZE);
     len -= (1 + HCI_EVENT_HDR_SIZE);
 
@@ -89,37 +86,31 @@ int ble_scan_loop(int dd, uint8_t filter_type) {
     for (int i = 0; i < num_reports; i++) {
       info = (le_advertising_info *)(meta->data + offset + 1);
 
-      uint8_t data[info->length + 2], hdata[info->length*2+1];
+      //uint8_t data[info->length + 2], hdata[info->length*2+1];
       
-      int rssi;
-      data[info->length+1] = 0;
-      memcpy(data, &info->data, info->length);
-      hexlify(hdata, data, info->length);
+      int8_t *rssi;
+      //data[info->length+1] = 0;
+      //memcpy(data, &info->data, info->length);
+      //hexlify(hdata, data, info->length);
 
       ba2str(&info->bdaddr, addr);
-      //ble_adv = json_object_new_object();
-      /* json_object_object_add(ble_adv, _("mac"), json_object_new_string(addr)); */
-      /* json_object_object_add(ble_adv, _("listener"), */
-      /*                        json_object_new_string(m_config.hostname)); */
-      /* json_object_object_add(ble_adv, _("timestamp"), */
-      /*                        json_object_new_int(timestamp)); */
-      /* json_object_object_add(ble_adv, _("data"), */
-      /*                        json_object_new_string((const char *)hdata)); */
       offset += info->length + 11;
-      rssi = *((int8_t *)(meta->data + offset - 1));
-      /* json_object_object_add(ble_adv, _("rssi"), json_object_new_int(rssi)); */
-      /* array = json_object_new_array(); */
-      /* json_object_array_add(array, ble_adv); */
-      /* curl_easy_setopt(curl, CURLOPT_POSTFIELDS, */
-      /*                  json_object_to_json_string(array)); */
-      /* curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, FALSE); */
-      /* curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, log_response); */
-      /* CURLcode res = curl_easy_perform(curl); */
-      /* if (res != CURLE_OK) { */
-      /*   fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res)); */
-      /* } */
-      log_stdout("%s %s %s %d\n", m_config.hostname, addr, data, rssi);
-      //log_stdout("\n\n%s\n", json_object_to_json_string(array));
+      rssi = (int8_t *)(meta->data + offset - 1);
+      log_stdout("%s %d\n", addr, *rssi);
+      char buf[1+31+1+6+HOSTNAME_MAX_LEN] = {0},
+	i = 0, hostlen = 0;
+      memcpy(buf+i, &info->length, 1);
+      i+=1;
+      memcpy(buf+i, info->data, info->length);
+      i+=info->length;
+      memcpy(buf+i, rssi, 1);
+      i+=1;
+      memcpy(buf+i, &info->bdaddr, 6);
+      i+=6;
+      hostlen = strlen(m_config.hostname);
+      memcpy(buf+i, m_config.hostname, hostlen);
+      i+=hostlen;
+      udp_send(buf, i);
     }
   }
 

@@ -196,6 +196,7 @@ int main(int argc, char **argv) {
     }
   }
   gethostname(m_config.hostname, HOSTNAME_MAX_LEN);
+  init_udp(m_config.ip, m_config.port);
   /* Loop through scan results */
   err = ble_scan_loop(dd, filter_type);
   if (err < 0) {
