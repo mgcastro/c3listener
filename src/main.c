@@ -240,7 +240,6 @@ int m_curl_init(void) {
   }
   headers = curl_slist_append(headers, "Content-Type: application/json");
   curl_easy_setopt(curl, CURLOPT_URL, m_config.post_url);
-  curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, 1);
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
   gethostname(m_config.hostname, HOSTNAME_MAX_LEN);
   return 0;
