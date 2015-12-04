@@ -1,8 +1,12 @@
 #ifndef C3LISTENER_H
 #define C3LISTENER_H
 
+#include "kalman.h"
+
 #define HOSTNAME_MAX_LEN 255
 #define MAX_NET_PACKET 64
+
+#define REPORT_INTERVAL_MS 2000
 
 int ble_scan_loop(int, uint8_t);
 int m_cleanup(int);
@@ -23,6 +27,7 @@ typedef struct advdata {
   int data_len;
   int rssi;
 } adv_data_t;
+
 
 enum c3error {
   ERR_SUCCESS = 0,
