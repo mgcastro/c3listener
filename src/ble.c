@@ -124,8 +124,8 @@ int ble_scan_loop(int dd, uint8_t filter_type) {
       beacon_t* b = hash(uuid, major, minor);
       krssi = kalman(b, rssi, packet_ts);
       log_stdout("%d, %f\n", rssi, krssi);
-      memcpy(buf+i, &rssi, 1);
-      i+=1;
+      memcpy(buf+i, &krssi, sizeof(krssi));
+      i+=sizeof(krssi);
       memcpy(buf+i, &info->bdaddr, 6);
       i+=6;
       hostlen = strlen(m_config.hostname);
