@@ -20,10 +20,16 @@ sigint_handler (int signum)
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#include <stdarg.h>
 
 #include <config.h>
-#include <c3listener.h>
+
+#include <bluetooth/bluetooth.h>
+#include <bluetooth/hci.h>
+#include <bluetooth/hci_lib.h>
+
+#include "c3listener.h"
+#include "beacon.h"
+#include "log.h"
 
 #ifdef HAVE_GETTEXT
 #include "gettext.h"
@@ -35,27 +41,12 @@ sigint_handler (int signum)
 #include <locale.h>
 #endif /* HAVE_LOCALE_H */
 
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/hci.h>
-#include <bluetooth/hci_lib.h>
-int dd = 0;
-
 #include <libconfig.h>
 config_t cfg;
 
-/* Global config */
+/* Config and other globals */
 c3_config_t m_config = {.configured = false };
-static int verbose_flag;
-
-void log_stdout(const char *format, ...) {
-  if (verbose_flag) {
-    va_list argptr;
-    va_start(argptr, format);
-    vprintf(format, argptr);
-    fflush(stdout);
-    va_end(argptr);
-  }
-}
+int verbose_flag;
 
 int main(int argc, char **argv) {
   signal (SIGINT, sigint_handler);
@@ -69,9 +60,9 @@ int main(int argc, char **argv) {
   bindtextdomain(PACKAGE, LOCALEDIR);
   textdomain(PACKAGE);
 #endif /* HAVE_GETTEXT */
-
+  
   /* Parse command line options */
-  int c, logging = 0;
+  int ret, err, c, logging = 0;
   while (1) {
       static struct option long_options[] =
         {
@@ -122,43 +113,7 @@ int main(int argc, char **argv) {
 	break;
   }
   
-  /* Initialize Bluez */
-  int dev_id = 0;
-  int err, ret;
-  uint8_t own_type = 0x00;
-  uint8_t scan_type = 0x01;
-  uint8_t filter_type = 0;
-  uint8_t filter_policy = 0x00;
-  uint16_t interval = htobs(0x00F0); 
-  uint16_t window = htobs(0x00F0); 
-
-  if (dev_id < 0)
-    dev_id = hci_get_route(NULL);
-
-  dd = hci_open_dev(dev_id);
-  if (dd < 0) {
-    perror(_("Could not open bluetooth device"));
-    ret = ERR_NO_BLUETOOTH_DEV;
-    goto cleanup;
-  }
-
-  err = hci_le_set_scan_parameters(dd, scan_type, interval, window, own_type,
-                                   filter_policy, 100);
-  if (err < 0) {
-    perror(_("Set scan parameters failed"));
-    ret = ERR_SCAN_ENABLE_FAIL;
-    goto cleanup;
-  }
-
-  uint8_t filter_dup = 0;
-  err = hci_le_set_scan_enable(dd, 0x1, filter_dup, 100);
-  if (err < 0) {
-    perror(_("Enable scan failed"));
-    ret = ERR_SCAN_ENABLE_FAIL;
-    goto cleanup;
-  }
-
-/* Parse config */  
+  /* Parse config */  
 
   config_init(&cfg);
   if (!m_config.config_file) {
@@ -196,7 +151,12 @@ int main(int argc, char **argv) {
     }
   }
   gethostname(m_config.hostname, HOSTNAME_MAX_LEN);
+
   init_udp(m_config.ip, m_config.port);
+
+  int dd = ble_init();
+  uint8_t filter_type = 0, filter_dup = 0;
+  
   /* Loop through scan results */
   err = ble_scan_loop(dd, filter_type);
   if (err < 0) {

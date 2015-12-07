@@ -6,6 +6,8 @@
 #include <arpa/inet.h>
 #include <stdlib.h>
 
+#include "c3listener.h"
+
 
 static struct sockaddr_in c3ld;
 static int fd;
@@ -23,10 +25,14 @@ void init_udp(char *ip, int port) {
   
 }
 
-int udp_send(char *data, uint8_t len) {
-  return sendto(fd,
+int udp_send(uint8_t *data, uint8_t len) {
+  int ret = sendto(fd,
 		data,
 		len,
-		0,
+		MSG_DONTWAIT,
 		(struct sockaddr *)&c3ld, sizeof(c3ld));
+  if (ret == -1) {
+    log_stdout("Dropping packet\n");
+  }
+  return ret;
 }

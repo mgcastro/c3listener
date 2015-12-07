@@ -1,6 +1,6 @@
 AC_PREREQ([2.68])
-AC_INIT([c3listener],[2.0],[nock@nocko.se])
-AM_INIT_AUTOMAKE([foreign subdir-objects])
+AC_INIT([c3listener],[3.1],[nock@nocko.se])
+AM_INIT_AUTOMAKE([-Wall -Werror foreign subdir-objects])
 AC_CONFIG_SRCDIR([config.h.in])
 AC_CONFIG_HEADERS([config.h])
 AC_USE_SYSTEM_EXTENSIONS
@@ -27,9 +27,8 @@ AC_TYPE_UINT16_T
 AC_TYPE_UINT8_T
 
 # Checks for library functions.
-AM_GNU_GETTEXT
 AC_FUNC_MALLOC
-AC_CHECK_FUNCS([gethostname memset setlocale ])
+AC_CHECK_FUNCS([gethostname memset setlocale])
 
 AC_CONFIG_FILES([Makefile po/Makefile.in
                  src/Makefile])
