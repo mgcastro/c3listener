@@ -1,5 +1,5 @@
 AC_PREREQ([2.68])
-AC_INIT([c3listener],[3.1],[nock@nocko.se])
+AC_INIT([c3listener],[3.2],[nock@nocko.se])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign subdir-objects])
 AC_CONFIG_SRCDIR([config.h.in])
 AC_CONFIG_HEADERS([config.h])
@@ -15,6 +15,7 @@ AC_PROG_CC_C99
 # Checks for libraries.
 AC_CHECK_LIB([config], [config_init],[],[AC_MSG_ERROR('missing libconfig',1)])
 AC_CHECK_LIB([bluetooth], [hci_open_dev],[],[AC_MSG_ERROR('missing libbluetooth',1)])
+AC_CHECK_LIB([m], [round],[],[AC_MSG_ERROR('missing libm',1)])
 
 # Checks for header files.
 AC_CHECK_HEADERS([libintl.h locale.h stdlib.h string.h sys/socket.h unistd.h])

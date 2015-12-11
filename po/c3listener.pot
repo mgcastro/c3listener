@@ -1,14 +1,14 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) YEAR C3 Wireless
-# This file is distributed under the same license as the PACKAGE package.
+# This file is distributed under the same license as the c3listener package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 #
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: c3listener 1.1\n"
+"Project-Id-Version: c3listener 2.0\n"
 "Report-Msgid-Bugs-To: nock@nocko.se\n"
-"POT-Creation-Date: 2014-10-20 13:21-0400\n"
+"POT-Creation-Date: 2015-12-07 16:17-0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,108 +17,21 @@ msgstr ""
 "Content-Type: text/plain; charset=CHARSET\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: src/main.c:60
-#, c-format
-msgid "Failed to resolve host name: '%s': %s\n"
-msgstr ""
-
-#: src/main.c:72
-#, c-format
-msgid "Client failure, exiting: %s\n"
-msgstr ""
-
-#: src/main.c:113
-#, c-format
-msgid "Could not get socket options\n"
-msgstr ""
-
-#: src/main.c:122
-#, c-format
-msgid "Could not set socket options\n"
-msgstr ""
-
-#: src/main.c:171
-msgid "mac"
-msgstr ""
-
-#: src/main.c:172
-msgid "listener"
-msgstr ""
-
-#: src/main.c:173
-msgid "timestamp"
-msgstr ""
-
-#: src/main.c:174
-msgid "data"
-msgstr ""
-
-#: src/main.c:177
-msgid "rssi"
-msgstr ""
-
-#: src/main.c:215
+#: src/main.c:126
 #, c-format
 msgid "Problem with config file: %s: %s:%d - %s\n"
 msgstr ""
 
-#: src/main.c:222
+#: src/main.c:136
 #, c-format
-msgid "Using Avahi/Zeroconf: trying to resolve: %s\n"
+msgid "Using ip: %s\n"
 msgstr ""
 
-#: src/main.c:224
+#: src/main.c:145
 #, c-format
-msgid "Failed to create simple poll object.\n"
+msgid "Using port: %d\n"
 msgstr ""
 
-#: src/main.c:229
-#, c-format
-msgid "Failed to create client object: %s\n"
-msgstr ""
-
-#: src/main.c:233
-#, c-format
-msgid "Failed to create host name resolver: %s\n"
-msgstr ""
-
-#: src/main.c:244
-#, c-format
-msgid ""
-"Using static post from config file: %s\n"
-"\n"
-msgstr ""
-
-#: src/main.c:246
-#, c-format
-msgid "No 'post_url' setting in configuration file.\n"
-msgstr ""
-
-#: src/main.c:255
-msgid "Couldn't initialize libcurl handle"
-msgstr ""
-
-#: src/main.c:272
-msgid "Could not open bluetooth device"
-msgstr ""
-
-#: src/main.c:279
-msgid "Set scan parameters failed"
-msgstr ""
-
-#: src/main.c:285
-msgid "Enable scan failed"
-msgstr ""
-
-#: src/main.c:290
-#, c-format
-msgid "Scanning ..."
-msgstr ""
-
-#: src/main.c:295
+#: src/main.c:163
 msgid "Could not receive advertising events"
-msgstr ""
-
-#: src/main.c:301
-msgid "Disable scan failed"
 msgstr ""

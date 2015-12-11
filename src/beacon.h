@@ -9,7 +9,7 @@ typedef struct ibeacon {
   uint8_t uuid[16];
   uint16_t major, minor;
   uint16_t count;
-  double last_seen, last_report, rssi;
+  double last_seen, last_report, distance;
   int8_t tx_power;
   bool init;
 } beacon_t;

@@ -16,7 +16,6 @@ double kalman(void *b, int8_t z, double ts) {
   hashable_filterable_t *v = b;
   kalman_t *f = &v->kalman;
   if (!f->init){
-    /* log_stdout("Initialized filter\n"); */
     f->state[0] = z;
     /* Initial covariance calibrated via usb dongle and dev board */
     f->P[0][0] = 1.2;

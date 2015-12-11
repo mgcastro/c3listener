@@ -9,10 +9,13 @@
 #define HOSTNAME_MAX_LEN 255
 #define MAX_NET_PACKET 64
 
-#define REPORT_INTERVAL_MSEC 1000 /* How often to send reports */
+#define REPORT_INTERVAL_MSEC 500 /* How often to send reports */
 
 #define MAX_BEACON_INACTIVE_SEC 10 /* Free memory for any beacons
 				      quietfor this long */
+#define MAX_ACK_INTERVAL_SEC 5 /* Reopen UDP socket if we haven't
+				  heard from the server in for this
+				  long */
 
 #define GC_INTERVAL_SEC (MAX_BEACON_INACTIVE_SEC / 2) /* How often to check for inactive beacons */
 #define KEEP_ALIVE_SEC 30
@@ -24,12 +27,13 @@ int ble_init(void);
 int m_cleanup(int);
 void log_stdout(const char *, ...);
 int udp_send(uint8_t *, uint8_t);
-void init_udp(char *, int);
+int udp_init(char *, char *);
+void udp_cleanup(void);
 char *hexlify(const uint8_t* src, size_t n);
 
 typedef struct configuration {
-  char *ip;
-  uint16_t port;
+  char *server;
+  char *port;
   bool configured;
   char hostname[HOSTNAME_MAX_LEN], *config_file;
 } c3_config_t;

@@ -97,115 +97,124 @@ int ble_scan_loop(int dd, uint8_t filter_type) {
     return -1;
   }
   
-  double last_report = NAN, last_gc = NAN, last_report_attempt = NAN;
+  double last_report = NAN, last_gc = NAN, last_report_attempt = NAN, last_ack = time_now();
   /* double last_gc = NAN, last_packet = NAN; */
-  struct pollfd sockets[1];
+  struct pollfd sockets[2];
   int poll_ret;
   sockets[0].fd = dd;
   sockets[0].events = POLLIN;
+  sockets[1].fd = udp_init(m_config.server, m_config.port);
+  sockets[1].events = POLLIN;
+  
   double ts = NAN;
+  char ack_buf[30] = {0};
   while (1) {
     evt_le_meta_event *meta;
     le_advertising_info *info;
 
     /* Max interval for walker_cb callback = REPORT_INTERVAL_MSEC + REPORT_INTERVAL_MSEC / 4 */
-    poll_ret = poll(sockets, 1, REPORT_INTERVAL_MSEC);
-    if (poll_ret > 0 && (sockets[0].revents & POLLIN)) {
-      while ((len = read(dd, buf, sizeof(buf))) < 0) {
-	if (errno == EINTR) {
-	  perror(_("HCI Socket read interrupted"));
-	  len = 0;
+    poll_ret = poll(sockets, 2, REPORT_INTERVAL_MSEC);
+    ts = time_now();
+    if (poll_ret > 0) {
+      if (sockets[1].revents & POLLIN) {
+	/* We've received an ACK from the server */
+	read(sockets[1].fd, ack_buf, sizeof(ack_buf));
+	last_ack = ts;
+      }
+      if (sockets[0].revents & POLLIN) {
+	while ((len = read(sockets[0].fd, buf, sizeof(buf))) < 0) {
+	  if (errno == EINTR) {
+	    perror(_("HCI Socket read interrupted"));
+	    len = 0;
+	    goto done;
+	  }
+      
+	  if (errno == EAGAIN || errno == EWOULDBLOCK)
+	    continue;
+	  perror(_("Unknown HCI socket error"));
 	  goto done;
 	}
+	ptr = buf + (1 + HCI_EVENT_HDR_SIZE);
+	len -= (1 + HCI_EVENT_HDR_SIZE);
+	
+	meta = (void *)ptr;
+	
+	if (meta->subevent != 0x02) {
+	  printf(_("Failed to set HCI Socket Filter"));
+	  goto done;
+	}
+	
+	int num_reports;
+	num_reports = meta->data[0];
+	
+	for (int i = 0; i < num_reports; i++) {
+	  info = (le_advertising_info *)(meta->data + 1);
+	  if (memcmp(info->data, "\x02\x01\x04\x1a\xff", 5)
+	      || info->length < 30 || info->length > 31) {
+	    /* Skip non-ibeacon adverts */
+	    continue;
+	  }
+	  int rssi_offset = info->length + 10;
+	  int8_t rssi = meta->data[rssi_offset];
+	  uint8_t *uuid=info->data+9;
+	  int8_t tx_power = info->data[29];
+	  uint16_t major = info->data[25] << 8 | info->data[26];
+	  uint16_t minor = info->data[27] << 8 | info->data[28];
+	  /* char *debug = hexlify(uuid, 16); */
+	  /* log_stdout("\t UUID: %s MAJOR: %d MINOR: %d\n", */
+	  /* 		 debug, major, minor); */
+	  /* free(debug); */
+	  beacon_t* b = beacon_find_or_add(uuid, major, minor);
+	  b->distance = sqrt(pow(10, (tx_power-kalman(b, rssi, ts))/10));
+	  b->tx_power = (b->count * b->tx_power + tx_power)/(b->count + 1);
+	  b->count++;
+	  //log_stdout("%d, %f, %d\n", rssi, b->distance, tx_power);
+	}
+      }
+      int cb_idx = 0;
+      walker_cb func[MAX_HASH_CB] = {NULL};
+      void *args[MAX_HASH_CB] = {NULL};
       
-	if (errno == EAGAIN || errno == EWOULDBLOCK)
-	  continue;
-	perror(_("Unknown HCI socket error"));
-	goto done;
+      if (isnan(last_report_attempt) ||
+	  ts - last_report_attempt > REPORT_INTERVAL_MSEC / 1000.0) {
+	report_clear();
+	report_header(REPORT_VERSION_0, REPORT_PACKET_TYPE_DATA);
+	func[cb_idx] = report_beacon;
+	args[cb_idx++] = NULL;
       }
-      ts = time_now();
-      ptr = buf + (1 + HCI_EVENT_HDR_SIZE);
-      len -= (1 + HCI_EVENT_HDR_SIZE);
-
-      meta = (void *)ptr;
-
-      if (meta->subevent != 0x02) {
-	printf(_("Failed to set HCI Socket Filter"));
-	goto done;
+      if (isnan(last_gc) ||
+	  ts - last_gc > GC_INTERVAL_SEC) {
+	func[cb_idx] = beacon_expire;
+	args[cb_idx++] = &ts;
+	last_gc = ts;
       }
-
-      int num_reports;
-      num_reports = meta->data[0];
-    
-      for (int i = 0; i < num_reports; i++) {
-	info = (le_advertising_info *)(meta->data + 1);
-	if (memcmp(info->data, "\x02\x01\x04\x1a\xff", 5)
-	    || info->length < 30 || info->length > 31) {
-	  /* Skip non-ibeacon adverts */
-	  continue;
+      hash_walk(func, args, cb_idx);
+      if (ts - last_ack > MAX_ACK_INTERVAL_SEC) {
+	log_stdout("Server hasn't acknowleged in %d seconds. Reconnecting.\n", MAX_ACK_INTERVAL_SEC);
+	close(sockets[1].fd);
+	sockets[1].fd = udp_init(m_config.server, m_config.port);
+	last_ack = ts;
+      }
+      /* If we generated a report this walk, send it */ 
+      for (int i = 0; i < MAX_HASH_CB; i++) {
+	if (func[i] == report_beacon) {
+	  if (report_length() > report_header_length()) {
+	    report_send();
+	    last_report = ts;
+	  } else if (ts - last_report > KEEP_ALIVE_SEC || isnan(last_report)) {
+	    report_header(REPORT_VERSION_0, REPORT_PACKET_TYPE_KEEPALIVE);
+	    report_send();
+	    /* log_stdout("Report interval = %f\n", ts - last_report); */
+	    last_report = ts;
+	  }
+	  last_report_attempt = ts;
+	  break;
 	}
-	int rssi_offset = info->length + 10;
-	int8_t rssi = meta->data[rssi_offset];
-	uint8_t *uuid=info->data+9;
-	int8_t tx_power = info->data[29];
-	uint16_t major = info->data[25] << 8 | info->data[26];
-	uint16_t minor = info->data[27] << 8 | info->data[28];
-	/* char *debug = hexlify(uuid, 16); */
-	/* log_stdout("\t UUID: %s MAJOR: %d MINOR: %d\n", */
-	/* 		 debug, major, minor); */
-	/* free(debug); */
-	beacon_t* b = beacon_find_or_add(uuid, major, minor);
-	b->rssi = kalman(b, rssi, ts);
-	b->tx_power = (b->count * b->tx_power + tx_power)/(b->count + 1);
-	b->count++;
-	log_stdout("%d, %f, %d\n", rssi, b->rssi, tx_power);
-	/* report(b); */
-      }
-    }
-    /* log_stdout("Walk diff: %f; Last walk: %f; Packet TS: %f\n", */
-    /* 	       packet_ts - last_walk, last_walk, packet_ts); */
-    int cb_idx = 0;
-    walker_cb func[MAX_HASH_CB] = {NULL};
-    void *args[MAX_HASH_CB] = {NULL};
-    
-    if (isnan(last_report_attempt) ||
-	ts - last_report_attempt > REPORT_INTERVAL_MSEC / 1000.0) {
-      /* log_stdout("\tlast_report = %f; isnan = %d, %f > %f\n", last_report, isnan(last_report), */
-      /* 		 ts - last_report, REPORT_INTERVAL_MSEC / 1000.0);	  */
-      report_clear();
-      func[cb_idx] = report_beacon;
-      args[cb_idx++] = NULL;
-    }
-    if (isnan(last_gc) ||
-	ts - last_gc > GC_INTERVAL_SEC) {
-      func[cb_idx] = beacon_expire;
-      args[cb_idx++] = &ts;
-      /* log_stdout("GC interval = %f\n", ts - last_gc); */
-      last_gc = ts;
-    }
-    hash_walk(func, args, cb_idx);
-    /* log_stdout("Poll cycle took %f seconds\n", time_now()-ts); */
-    /* If we generated a report this walk, send it */ 
-    for (int i = 0; i < MAX_HASH_CB; i++) {
-      if (func[i] == report_beacon) {
-	if (report_length() > report_header_length() ||
-	    ts - last_report > KEEP_ALIVE_SEC || isnan(last_report)) {
-	  report_send();
-	  /* log_stdout("Report interval = %f\n", ts - last_report); */
-	  last_report = ts;
-	}
-	last_report_attempt = ts;
-	break;
       }
     }
   }
-
  done:
   setsockopt(dd, SOL_HCI, HCI_FILTER, &of, sizeof(of));
-  
-  if (len < 0)
-    perror("WTF");
-    return -1;
-  
+  close(sockets[1].fd);
   return 0;
 }

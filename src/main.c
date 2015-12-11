@@ -30,6 +30,7 @@ sigint_handler (int signum)
 #include "c3listener.h"
 #include "beacon.h"
 #include "log.h"
+#include "report.h"
 
 #ifdef HAVE_GETTEXT
 #include "gettext.h"
@@ -131,28 +132,27 @@ int main(int argc, char **argv) {
   }
 
   if (!m_config.configured) {
-    if (config_lookup_string(&cfg, "ip", (const char**)&m_config.ip)) {
+    if (config_lookup_string(&cfg, "server", (const char**)&m_config.server)) {
       if (verbose_flag)
-	printf(_("Using ip: %s\n"), m_config.ip);
+	printf(_("Using host: %s\n"), m_config.server);
       m_config.configured = true;
     }
     else {
-      fprintf(stderr, "No 'ip' setting in configuration file, using 127.0.0.1.\n");
-      m_config.ip = "127.0.0.1";
+      fprintf(stderr, "No 'server' setting in configuration file, using 127.0.0.1.\n");
+      m_config.server = "127.0.0.1";
     }
-    if (config_lookup_int(&cfg, "port", (int*)&m_config.port)) {
+    if (config_lookup_string(&cfg, "port", (const char **)&m_config.port)) {
       if (verbose_flag)
-	printf(_("Using port: %d\n"), m_config.port);
+	printf(_("Using port: %s\n"), m_config.port);
       m_config.configured = true;
     }
     else {
       fprintf(stderr, "No 'port' setting in configuration file, using 9999.\n");
-      m_config.port = 9999;
+      m_config.port = "9999";
     }
   }
   gethostname(m_config.hostname, HOSTNAME_MAX_LEN);
-
-  init_udp(m_config.ip, m_config.port);
+  report_init();
 
   int dd = ble_init();
   uint8_t filter_type = 0, filter_dup = 0;
