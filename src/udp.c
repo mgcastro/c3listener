@@ -27,7 +27,7 @@ int udp_init(char *server_hostname, char *port) {
   int s = getaddrinfo(server_hostname, port, &hints, &result);
   if (s != 0) {
     fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
-    exit(EXIT_FAILURE);
+    return -1;
   }
   
   /* getaddrinfo() returns a list of address structures.

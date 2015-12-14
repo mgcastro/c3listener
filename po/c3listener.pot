@@ -6,9 +6,9 @@
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: c3listener 2.0\n"
+"Project-Id-Version: c3listener 3.2\n"
 "Report-Msgid-Bugs-To: nock@nocko.se\n"
-"POT-Creation-Date: 2015-12-07 16:17-0500\n"
+"POT-Creation-Date: 2015-12-11 15:38-0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,19 +17,19 @@ msgstr ""
 "Content-Type: text/plain; charset=CHARSET\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: src/main.c:126
+#: src/main.c:127
 #, c-format
 msgid "Problem with config file: %s: %s:%d - %s\n"
 msgstr ""
 
-#: src/main.c:136
+#: src/main.c:137
 #, c-format
-msgid "Using ip: %s\n"
+msgid "Using host: %s\n"
 msgstr ""
 
-#: src/main.c:145
+#: src/main.c:146
 #, c-format
-msgid "Using port: %d\n"
+msgid "Using port: %s\n"
 msgstr ""
 
 #: src/main.c:163
