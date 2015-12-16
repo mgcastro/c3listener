@@ -115,7 +115,7 @@ int main(int argc, char **argv) {
   }
   
   /* Parse config */  
-
+  log_stdout("Starting c3listener v%s\n", PACKAGE_VERSION);
   config_init(&cfg);
   if (!m_config.config_file) {
     char *default_config = SYSCONFDIR"/c3listener.conf";
