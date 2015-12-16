@@ -150,6 +150,22 @@ int main(int argc, char **argv) {
       fprintf(stderr, "No 'port' setting in configuration file, using 9999.\n");
       m_config.port = "9999";
     }
+    const char *path_loss_buf;
+    if (config_lookup_string(&cfg, "path_loss", &path_loss_buf)) {
+      m_config.path_loss = strtof(path_loss_buf, NULL);
+    } else {
+      m_config.path_loss = 0;
+    }
+    if (m_config.path_loss == 0) {
+      m_config.path_loss = DEFAULT_PATH_LOSS_EXP;
+      if (verbose_flag) {
+	printf(_("RSSI Path Loss invalid or not provided\n"));
+      }
+    }
+    if (verbose_flag) {
+      printf(_("Using Path Loss constant: %1.4f\n"), m_config.path_loss);
+    }
+    
   }
   gethostname(m_config.hostname, HOSTNAME_MAX_LEN);
   report_init();

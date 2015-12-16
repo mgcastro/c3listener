@@ -165,52 +165,53 @@ int ble_scan_loop(int dd, uint8_t filter_type) {
 	  /* 		 debug, major, minor); */
 	  /* free(debug); */
 	  beacon_t* b = beacon_find_or_add(uuid, major, minor);
-	  b->distance = sqrt(pow(10, (tx_power-kalman(b, rssi, ts))/10));
+	  b->distance = sqrt(pow(10, (tx_power-kalman(b, rssi, ts))/(10*m_config.path_loss)));
 	  b->tx_power = (b->count * b->tx_power + tx_power)/(b->count + 1);
 	  b->count++;
-	  //log_stdout("%d, %f, %d\n", rssi, b->distance, tx_power);
+	  log_stdout("%d, %f, %d\n", rssi, b->distance, tx_power);
 	}
       }
-      int cb_idx = 0;
-      walker_cb func[MAX_HASH_CB] = {NULL};
-      void *args[MAX_HASH_CB] = {NULL};
-      
-      if (isnan(last_report_attempt) ||
-	  ts - last_report_attempt > REPORT_INTERVAL_MSEC / 1000.0) {
-	report_clear();
-	report_header(REPORT_VERSION_0, REPORT_PACKET_TYPE_DATA);
-	func[cb_idx] = report_beacon;
-	args[cb_idx++] = NULL;
-      }
-      if (isnan(last_gc) ||
-	  ts - last_gc > GC_INTERVAL_SEC) {
-	func[cb_idx] = beacon_expire;
-	args[cb_idx++] = &ts;
-	last_gc = ts;
-      }
-      hash_walk(func, args, cb_idx);
-      if (ts - last_ack > MAX_ACK_INTERVAL_SEC) {
-	log_stdout("Server hasn't acknowleged in %d seconds. Reconnecting.\n", MAX_ACK_INTERVAL_SEC);
-	close(sockets[1].fd);
-	sockets[1].fd = udp_init(m_config.server, m_config.port);
-	last_ack = ts;
-      }
-      /* If we generated a report this walk, send it */ 
-      for (int i = 0; i < MAX_HASH_CB; i++) {
-	if (func[i] == report_beacon) {
-	  if (report_length() > report_header_length()) {
-	    report_send();
-	    last_report = ts;
-	  } else if (ts - last_report > KEEP_ALIVE_SEC || isnan(last_report)) {
-	    report_header(REPORT_VERSION_0, REPORT_PACKET_TYPE_KEEPALIVE);
-	    report_send();
-	    /* log_stdout("Report interval = %f\n", ts - last_report); */
-	    last_report = ts;
-	  }
-	  last_report_attempt = ts;
-	  break;
+    }
+    int cb_idx = 0;
+    walker_cb func[MAX_HASH_CB] = {NULL};
+    void *args[MAX_HASH_CB] = {NULL};
+    
+    if (isnan(last_report_attempt) ||
+	ts - last_report_attempt > REPORT_INTERVAL_MSEC / 1000.0) {
+      report_clear();
+      report_header(REPORT_VERSION_0, REPORT_PACKET_TYPE_DATA);
+      func[cb_idx] = report_beacon;
+      args[cb_idx++] = NULL;
+    }
+    if (isnan(last_gc) ||
+	ts - last_gc > GC_INTERVAL_SEC) {
+      func[cb_idx] = beacon_expire;
+      args[cb_idx++] = &ts;
+      last_gc = ts;
+    }
+    hash_walk(func, args, cb_idx);
+    if (ts - last_ack > MAX_ACK_INTERVAL_SEC) {
+      log_stdout("Server hasn't acknowleged in %d seconds. Reconnecting.\n", MAX_ACK_INTERVAL_SEC);
+      close(sockets[1].fd);
+      sockets[1].fd = udp_init(m_config.server, m_config.port);
+      last_ack = ts;
+    }
+    /* If we generated a report this walk, send it */ 
+    for (int i = 0; i < MAX_HASH_CB; i++) {
+      if (func[i] == report_beacon) {
+	if (report_length() > report_header_length()) {
+	  report_send();
+	  last_report = ts;
 	}
+	last_report_attempt = ts;
+	break;
       }
+    }
+    if (isnan(last_report) || ts - last_report > KEEP_ALIVE_SEC ) {
+      report_header(REPORT_VERSION_0, REPORT_PACKET_TYPE_KEEPALIVE);
+      report_send();
+      log_stdout("Keep alive sent\n");
+      last_report = ts;
     }
   }
  done:

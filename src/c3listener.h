@@ -13,9 +13,12 @@
 
 #define MAX_BEACON_INACTIVE_SEC 10 /* Free memory for any beacons
 				      quietfor this long */
-#define MAX_ACK_INTERVAL_SEC 5 /* Reopen UDP socket if we haven't
+#define MAX_ACK_INTERVAL_SEC 40 /* Reopen UDP socket if we haven't
 				  heard from the server in for this
 				  long */
+
+#define MAX_PATH_LOSS_DIGITS 5 /* How many significant figures in rssi calibration */
+#define DEFAULT_PATH_LOSS_EXP 3.2
 
 #define GC_INTERVAL_SEC (MAX_BEACON_INACTIVE_SEC / 2) /* How often to check for inactive beacons */
 #define KEEP_ALIVE_SEC 30
@@ -36,6 +39,7 @@ typedef struct configuration {
   char *port;
   bool configured;
   char hostname[HOSTNAME_MAX_LEN], *config_file;
+  double path_loss;
 } c3_config_t;
 
 typedef struct advdata {

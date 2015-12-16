@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: c3listener 3.2\n"
 "Report-Msgid-Bugs-To: nock@nocko.se\n"
-"POT-Creation-Date: 2015-12-11 15:38-0500\n"
+"POT-Creation-Date: 2015-12-14 11:05-0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -32,6 +32,16 @@ msgstr ""
 msgid "Using port: %s\n"
 msgstr ""
 
-#: src/main.c:163
+#: src/main.c:162
+#, c-format
+msgid "RSSI Path Loss invalid or not provided\n"
+msgstr ""
+
+#: src/main.c:166
+#, c-format
+msgid "Using Path Loss constant: %1.4f\n"
+msgstr ""
+
+#: src/main.c:179
 msgid "Could not receive advertising events"
 msgstr ""
