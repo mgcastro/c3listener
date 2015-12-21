@@ -165,7 +165,7 @@ int ble_scan_loop(int dd, uint8_t filter_type) {
 	  /* 		 debug, major, minor); */
 	  /* free(debug); */
 	  beacon_t* b = beacon_find_or_add(uuid, major, minor);
-	  b->distance = sqrt(pow(10, (tx_power-kalman(b, rssi, ts))/(10*m_config.path_loss)));
+	  b->distance = pow(10, (tx_power-kalman(b, rssi, ts))/(10*m_config.path_loss));
 	  b->tx_power = (b->count * b->tx_power + tx_power)/(b->count + 1);
 	  b->count++;
 	  log_stdout("%d, %f, %d\n", rssi, b->distance, tx_power);
