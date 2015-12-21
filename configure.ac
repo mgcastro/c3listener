@@ -1,5 +1,5 @@
 AC_PREREQ([2.68])
-AC_INIT([c3listener],[3.3],[nock@nocko.se])
+AC_INIT([c3listener],[3.3.1],[nock@nocko.se])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign subdir-objects])
 AC_CONFIG_SRCDIR([config.h.in])
 AC_CONFIG_HEADERS([config.h])
