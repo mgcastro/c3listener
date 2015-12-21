@@ -51,6 +51,8 @@ int verbose_flag;
 
 int main(int argc, char **argv) {
   signal (SIGINT, sigint_handler);
+  signal (SIGTERM, sigint_handler);
+  signal (SIGHUP, sigint_handler);
   if(setjmp(cleanup))
     goto cleanup;
   /* Initialize i18n */ 

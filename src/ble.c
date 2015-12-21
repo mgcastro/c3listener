@@ -51,7 +51,6 @@ int ble_init(void) {
     dev_id = hci_get_route(NULL);
 
   dd = hci_open_dev(dev_id);
-  /* fcntl(dd, F_SETFL, O_NONBLOCK); */
   
   if (dd < 0) {
     perror(_("Could not open bluetooth device"));
@@ -59,18 +58,19 @@ int ble_init(void) {
   }
 
   err = hci_le_set_scan_parameters(dd, scan_type, interval, window, own_type,
-                                   filter_policy, 100);
+                                   filter_policy, 1000);
   if (err < 0) {
     perror(_("Set scan parameters failed"));
     exit(ERR_SCAN_ENABLE_FAIL);
   }
 
   uint8_t filter_dup = 0;
-  err = hci_le_set_scan_enable(dd, 0x1, filter_dup, 100);
+  err = hci_le_set_scan_enable(dd, 0x1, filter_dup, 1000);
   if (err < 0) {
     perror(_("Enable scan failed"));
     exit(ERR_SCAN_ENABLE_FAIL);
   }
+  fcntl(dd, F_SETFL, O_NONBLOCK);
   return dd;
 }
 
