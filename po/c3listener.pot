@@ -6,9 +6,9 @@
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: c3listener 4711b0adc8730ea7af460cdb5e0cbdb1b8b84454\n"
+"Project-Id-Version: c3listener 3.2\n"
 "Report-Msgid-Bugs-To: nock@nocko.se\n"
-"POT-Creation-Date: 2015-12-21 15:52-0500\n"
+"POT-Creation-Date: 2015-12-14 11:05-0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,31 +17,31 @@ msgstr ""
 "Content-Type: text/plain; charset=CHARSET\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: src/main.c:129
+#: src/main.c:127
 #, c-format
 msgid "Problem with config file: %s: %s:%d - %s\n"
 msgstr ""
 
-#: src/main.c:139
+#: src/main.c:137
 #, c-format
 msgid "Using host: %s\n"
 msgstr ""
 
-#: src/main.c:148
+#: src/main.c:146
 #, c-format
 msgid "Using port: %s\n"
 msgstr ""
 
-#: src/main.c:164
+#: src/main.c:162
 #, c-format
 msgid "RSSI Path Loss invalid or not provided\n"
 msgstr ""
 
-#: src/main.c:168
+#: src/main.c:166
 #, c-format
 msgid "Using Path Loss constant: %1.4f\n"
 msgstr ""
 
-#: src/main.c:181
+#: src/main.c:179
 msgid "Could not receive advertising events"
 msgstr ""
