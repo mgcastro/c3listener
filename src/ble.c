@@ -70,7 +70,7 @@ int ble_init(void) {
     perror(_("Enable scan failed"));
     exit(ERR_SCAN_ENABLE_FAIL);
   }
-  fcntl(dd, F_SETFL, O_NONBLOCK);
+  //fcntl(dd, F_SETFL, O_NONBLOCK);
   return dd;
 }
 
