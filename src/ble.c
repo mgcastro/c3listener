@@ -17,6 +17,7 @@
 #include "c3listener.h"
 #include "hash.h"
 #include "kalman.h"
+#include "log.h"
 #include "report.h"
 #include "time_util.h"
 
@@ -160,15 +161,11 @@ int ble_scan_loop(int dd, uint8_t filter_type) {
 	  int8_t tx_power = info->data[29];
 	  uint16_t major = info->data[25] << 8 | info->data[26];
 	  uint16_t minor = info->data[27] << 8 | info->data[28];
-	  /* char *debug = hexlify(uuid, 16); */
-	  /* log_stdout("\t UUID: %s MAJOR: %d MINOR: %d\n", */
-	  /* 		 debug, major, minor); */
-	  /* free(debug); */
 	  beacon_t* b = beacon_find_or_add(uuid, major, minor);
 	  b->distance = pow(10, (tx_power-kalman(b, rssi, ts))/(10*m_config.path_loss));
 	  b->tx_power = (b->count * b->tx_power + tx_power)/(b->count + 1);
 	  b->count++;
-	  log_stdout("%d, %f, %d\n", rssi, b->distance, tx_power);
+	  log_debug("%d, %f, %d\n", rssi, b->distance, tx_power);
 	}
       }
     }
@@ -191,7 +188,7 @@ int ble_scan_loop(int dd, uint8_t filter_type) {
     }
     hash_walk(func, args, cb_idx);
     if (ts - last_ack > MAX_ACK_INTERVAL_SEC) {
-      log_stdout("Server hasn't acknowleged in %d seconds. Reconnecting.\n", MAX_ACK_INTERVAL_SEC);
+      log_warn("Server hasn't acknowleged in %d seconds. Reconnecting.\n", MAX_ACK_INTERVAL_SEC);
       close(sockets[1].fd);
       sockets[1].fd = udp_init(m_config.server, m_config.port);
       last_ack = ts;
@@ -210,7 +207,7 @@ int ble_scan_loop(int dd, uint8_t filter_type) {
     if (isnan(last_report) || ts - last_report > KEEP_ALIVE_SEC ) {
       report_header(REPORT_VERSION_0, REPORT_PACKET_TYPE_KEEPALIVE);
       report_send();
-      log_stdout("Keep alive sent\n");
+      log_debug("Keep alive sent\n");
       last_report = ts;
     }
   }

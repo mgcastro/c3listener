@@ -13,6 +13,7 @@
 #include <unistd.h>
 
 #include "c3listener.h"
+#include "log.h"
 
 static int fd;
 
@@ -43,7 +44,7 @@ int udp_init(char *server_hostname, char *port) {
       p = &(((struct sockaddr_in6*)rp->ai_addr)->sin6_addr);
     char s[INET6_ADDRSTRLEN];
     inet_ntop(rp->ai_family, p, s, sizeof s);
-    log_stdout("Connecting to %s\n", s);
+    log_notice("Connecting to %s\n", s);
     fd = socket(rp->ai_family, rp->ai_socktype,
 		 rp->ai_protocol);
     fcntl(fd, F_SETFL, O_NONBLOCK);
@@ -69,7 +70,7 @@ int udp_send(uint8_t *data, uint8_t len) {
   int ret = write(fd, data, len);
   if (ret < len) {
     if (errno == ECONNREFUSED) {
-      log_stdout("Packet refused at server\n");
+      log_error("Packet refused at server\n");
     }
   }
   /* char *buf[4] = {0}; */

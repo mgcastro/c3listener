@@ -21,7 +21,7 @@ int beacon_index(void *a) {
 
 bool beacon_eq(void *a, void *b) {
   beacon_t *aa = a, *bb = b;
-  /* log_stdout("%d == %d, %d == %d, UUID Result: %d\n", */
+  /* log_debug("%d == %d, %d == %d, UUID Result: %d\n", */
   /* 	     aa->major, bb->major, aa->minor, bb->minor, !memcmp(aa->uuid, bb->uuid, 16)); */
   return (aa->major == bb->major &&
 	  aa->minor == bb->minor &&
@@ -35,7 +35,7 @@ beacon_t *beacon_find_or_add(uint8_t *uuid, uint16_t major, uint16_t minor) {
   b->major = major;
   b->minor = minor;
   b->kalman.init = false;
-  /* log_stdout("%d == %d, %d == %d\n", major, b->major, minor, b->minor); */
+  /* log_debug("%d == %d, %d == %d\n", major, b->major, minor, b->minor); */
   ret = hash_add(b, beacon_index, beacon_eq);
   if (ret != b) {
     /* If the beacon already exists, hash_add will return its existing
@@ -53,9 +53,9 @@ beacon_t *beacon_find_or_add(uint8_t *uuid, uint16_t major, uint16_t minor) {
 void *beacon_expire(void *a, void *c) {
   beacon_t *b = a;
   double now_ts = *(double *)c;
-  /* log_stdout("%f - %f = %f\n", b->kalman.last_seen, now_ts, b->kalman.last_seen - now_ts); */
+  /* log_debug("%f - %f = %f\n", b->kalman.last_seen, now_ts, b->kalman.last_seen - now_ts); */
   if (now_ts - b->kalman.last_seen > MAX_BEACON_INACTIVE_SEC) {
-    log_stdout("Deleted\n");
+    log_debug("Beacon pruned\n");
     a = NULL; /* Alert the parent that we cannot dereference */
     hash_delete(b, beacon_index, beacon_eq);
     return NULL;

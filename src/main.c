@@ -115,22 +115,24 @@ int main(int argc, char **argv) {
       if (c == -1)
 	break;
   }
-  
+
+  log_init();
   /* Parse config */
 #ifdef GIT_REVISION
-  log_stdout("Starting ble-udp-bridge (%s)\n", GIT_REVISION);
+  log_notice("Starting ble-udp-bridge (%s)\n", GIT_REVISION);
 #else
-  log_stdout("Starting c3listener v%s\n", PACKAGE_VERSION);
+  log_notice("Starting c3listener v%s\n", PACKAGE_VERSION);
 #endif
   config_init(&cfg);
   if (!m_config.config_file) {
     char *default_config = SYSCONFDIR"/c3listener.conf";
     m_config.config_file = malloc(strlen(default_config)+1);
-    memcpy(m_config.config_file, default_config, strlen(default_config)+1);
+    memset(m_config.config_file, 0, strlen(default_config)+1);
+    memcpy(m_config.config_file, default_config, strlen(default_config));
   }
-  log_stdout("Using config file: %s\n", m_config.config_file);
+  log_notice("Using config file: %s\n", m_config.config_file);
   if (!config_read_file(&cfg, m_config.config_file)) {
-    fprintf(stderr, _("Problem with config file: %s: %s:%d - %s\n"),
+    log_error(_("Problem with config file: %s: %s:%d - %s\n"),
             m_config.config_file, config_error_file(&cfg), config_error_line(&cfg),
             config_error_text(&cfg));
     ret = ERR_BAD_CONFIG;
@@ -139,21 +141,19 @@ int main(int argc, char **argv) {
 
   if (!m_config.configured) {
     if (config_lookup_string(&cfg, "server", (const char**)&m_config.server)) {
-      if (verbose_flag)
-	printf(_("Using host: %s\n"), m_config.server);
+      log_notice(_("Using host: %s\n"), m_config.server);
       m_config.configured = true;
     }
     else {
-      fprintf(stderr, "No 'server' setting in configuration file, using 127.0.0.1.\n");
+      log_warn("No 'server' setting in configuration file, using 127.0.0.1.\n");
       m_config.server = "127.0.0.1";
     }
     if (config_lookup_string(&cfg, "port", (const char **)&m_config.port)) {
-      if (verbose_flag)
-	printf(_("Using port: %s\n"), m_config.port);
+      log_notice(_("Using port: %s\n"), m_config.port);
       m_config.configured = true;
     }
     else {
-      fprintf(stderr, "No 'port' setting in configuration file, using 9999.\n");
+      log_warn("No 'port' setting in configuration file, using 9999.\n");
       m_config.port = "9999";
     }
     const char *path_loss_buf;
@@ -164,13 +164,9 @@ int main(int argc, char **argv) {
     }
     if (m_config.path_loss == 0) {
       m_config.path_loss = DEFAULT_PATH_LOSS_EXP;
-      if (verbose_flag) {
-	printf(_("RSSI Path Loss invalid or not provided\n"));
-      }
+      log_warn(_("RSSI Path Loss invalid or not provided\n"));
     }
-    if (verbose_flag) {
-      printf(_("Using Path Loss constant: %1.4f\n"), m_config.path_loss);
-    }
+    log_notice(_("Using Path Loss constant: %f\n"), m_config.path_loss);
     
   }
   gethostname(m_config.hostname, HOSTNAME_MAX_LEN);
@@ -182,7 +178,7 @@ int main(int argc, char **argv) {
   /* Loop through scan results */
   err = ble_scan_loop(dd, filter_type);
   if (err < 0) {
-    perror(_("Could not receive advertising events"));
+    log_error(_("Could not receive advertising events: %s"), strerror(errno));
     ret = ERR_SCAN_FAIL;
     goto cleanup;
   }

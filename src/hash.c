@@ -64,11 +64,11 @@ void *hash_add(void *obj, index_cb index, equal_p equal) {
       v_last = v;
       if (obj == v || equal(obj, v)) {
 	/* A match */
-	/* log_stdout("Hit\n"); */
+	/* log_debug("Hit\n"); */
 	return v;
       } else {
-	log_stdout("Collision\n");
 	/* Collision */
+	/* log_debug("Collision\n"); */
       }
     } while ((v = v->next));
   }
@@ -83,7 +83,7 @@ void *hash_add(void *obj, index_cb index, equal_p equal) {
     hashtable[idx] = v;
     v->prev = v->next = NULL;
   }
-  /* log_stdout("Created\n"); */
+  /* log_debug("Created\n"); */
   return v;
 }
 
@@ -95,7 +95,7 @@ void hash_walk(walker_cb *walker, void **args, size_t size) {
   for (int i = 0; i < HASH_TABLE_LENGTH; i++) {
     hashable_t *v = hashtable[i];
     while (v != NULL) {
-      /* log_stdout("Running walker on %p\n", v); */
+      /* log_debug("Running walker on %p\n", v); */
       for (int j = 0; j < size; j++) {
 	v = walker[j](v, args[j]);
 	if (v == NULL) {
@@ -109,6 +109,6 @@ void hash_walk(walker_cb *walker, void **args, size_t size) {
       }
       v = v->next;
     }
-    /* log_stdout("Checking idx: %d\n", i); */
+    /* log_debug("Checking idx: %d\n", i); */
   }
 }  
