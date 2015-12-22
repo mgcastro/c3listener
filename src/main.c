@@ -118,7 +118,7 @@ int main(int argc, char **argv) {
   
   /* Parse config */
 #ifdef GIT_REVISION
-  log_stdout("Starting c3listener v%s\n", GIT_REVISION);
+  log_stdout("Starting ble-udp-bridge (%s)\n", GIT_REVISION);
 #else
   log_stdout("Starting c3listener v%s\n", PACKAGE_VERSION);
 #endif
