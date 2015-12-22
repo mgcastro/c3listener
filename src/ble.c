@@ -2,6 +2,7 @@
 #include <fcntl.h>
 #include <math.h>
 #include <poll.h>
+#include <setjmp.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -22,6 +23,7 @@
 #include "time_util.h"
 
 extern c3_config_t m_config;
+extern jmp_buf cleanup;
 
 #ifdef HAVE_GETTEXT
 #include "gettext.h"
@@ -40,6 +42,7 @@ char *hexlify(const uint8_t* src, size_t n) {
 }
 
 int ble_init(void) {
+  /* Always happens in parent running as root */
   int dev_id = 0, dd;
   int err;
   uint8_t own_type = 0x00;
@@ -54,39 +57,28 @@ int ble_init(void) {
   dd = hci_open_dev(dev_id);
   
   if (dd < 0) {
-    perror(_("Could not open bluetooth device"));
-    exit(ERR_NO_BLUETOOTH_DEV);
+    log_error(_("Could not open bluetooth device"), strerror(errno));
+    longjmp(cleanup, 0);
   }
 
   err = hci_le_set_scan_parameters(dd, scan_type, interval, window, own_type,
                                    filter_policy, 1000);
   if (err < 0) {
-    perror(_("Set scan parameters failed"));
-    exit(ERR_SCAN_ENABLE_FAIL);
+    log_error(_("Set scan parameters failed"), strerror(errno));
+    longjmp(cleanup, 0);
   }
 
   uint8_t filter_dup = 0;
   err = hci_le_set_scan_enable(dd, 0x1, filter_dup, 1000);
   if (err < 0) {
-    perror(_("Enable scan failed"));
-    exit(ERR_SCAN_ENABLE_FAIL);
+    log_error(_("Enable scan failed"), strerror(errno));
+    longjmp(cleanup, 0);
   }
-  //fcntl(dd, F_SETFL, O_NONBLOCK);
-  return dd;
-}
-
-int ble_scan_loop(int dd, uint8_t filter_type) {
-  //int ret = ERR_SUCCESS;
-
-  unsigned char buf[HCI_MAX_EVENT_SIZE], *ptr;
   struct hci_filter nf, of;
-  socklen_t olen;
-  int len;
-
-  olen = sizeof(of);
+  socklen_t olen = sizeof(of);
   if (getsockopt(dd, SOL_HCI, HCI_FILTER, &of, &olen) < 0) {
-    perror(_("Could not get socket options"));
-    return -1;
+    log_error(_("Could not get socket options"), strerror(errno));
+    exit(errno);
   }
 
   hci_filter_clear(&nf);
@@ -94,10 +86,18 @@ int ble_scan_loop(int dd, uint8_t filter_type) {
   hci_filter_set_event(EVT_LE_META_EVENT, &nf);
 
   if (setsockopt(dd, SOL_HCI, HCI_FILTER, &nf, sizeof(nf)) < 0) {
-    perror(_("Could not set socket options"));
-    return -1;
+    log_error(_("Could not set socket options"), strerror(errno));
+    exit(errno);
   }
-  
+  fcntl(dd, F_SETFL, O_NONBLOCK);
+  return dd;
+}
+
+void ble_scan_loop(int dd, uint8_t filter_type) {
+  /* Always happens in child; error route should be exit/abort */
+
+  unsigned char buf[HCI_MAX_EVENT_SIZE], *ptr;
+  int len;
   double last_report = NAN, last_gc = NAN, last_report_attempt = NAN, last_ack = time_now();
   /* double last_gc = NAN, last_packet = NAN; */
   struct pollfd sockets[2];
@@ -125,15 +125,14 @@ int ble_scan_loop(int dd, uint8_t filter_type) {
       if (sockets[0].revents & POLLIN) {
 	while ((len = read(sockets[0].fd, buf, sizeof(buf))) < 0) {
 	  if (errno == EINTR) {
-	    perror(_("HCI Socket read interrupted"));
-	    len = 0;
-	    goto done;
+	    log_error(_("HCI Socket read interrupted"), strerror(errno));
+	    exit(errno);
 	  }
       
 	  if (errno == EAGAIN || errno == EWOULDBLOCK)
 	    continue;
-	  perror(_("Unknown HCI socket error"));
-	  goto done;
+	  log_error(_("Unknown HCI socket error"), strerror(errno));
+	  exit(errno);
 	}
 	ptr = buf + (1 + HCI_EVENT_HDR_SIZE);
 	len -= (1 + HCI_EVENT_HDR_SIZE);
@@ -141,8 +140,8 @@ int ble_scan_loop(int dd, uint8_t filter_type) {
 	meta = (void *)ptr;
 	
 	if (meta->subevent != 0x02) {
-	  printf(_("Failed to set HCI Socket Filter"));
-	  goto done;
+	  log_error(_("Failed to set HCI Socket Filter"));
+	  exit(errno);
 	}
 	
 	int num_reports;
@@ -211,8 +210,4 @@ int ble_scan_loop(int dd, uint8_t filter_type) {
       last_report = ts;
     }
   }
- done:
-  setsockopt(dd, SOL_HCI, HCI_FILTER, &of, sizeof(of));
-  close(sockets[1].fd);
-  return 0;
 }

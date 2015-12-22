@@ -28,6 +28,9 @@ sigint_handler (int signum)
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 
+#include <sys/types.h>
+#include <sys/wait.h>
+
 #include "c3listener.h"
 #include "beacon.h"
 #include "log.h"
@@ -66,7 +69,7 @@ int main(int argc, char **argv) {
 #endif /* HAVE_GETTEXT */
   
   /* Parse command line options */
-  int ret, err, c, logging = 0;
+  int ret, c, logging = 0;
   while (1) {
       static struct option long_options[] =
         {
@@ -76,12 +79,13 @@ int main(int argc, char **argv) {
              We distinguish them by their indices. */
           {"config",  required_argument, 0, 'c'},
 	  {"log",  required_argument, 0, 'l'},
+	  {"user", required_argument, 0, 'u'},
 	  {0, 0, 0, 0}
         };
       /* getopt_long stores the option index here. */
       int option_index = 0;
 
-      c = getopt_long (argc, argv, "l:dvc:",
+      c = getopt_long (argc, argv, "l:dvc:u:",
                        long_options, &option_index);
 
       /* Detect the end of the options. */
@@ -101,6 +105,11 @@ int main(int argc, char **argv) {
           break;
 	case 'v':
 	  verbose_flag=1;
+	  break;
+	case 'u':
+	  m_config.user = malloc(strlen(optarg)+1);
+	  memset(m_config.user, 0, strlen(optarg)+1);
+	  memcpy(m_config.user, optarg, strlen(optarg)+1);
 	  break;
         case '?':
           /* getopt_long already printed an error message. */
@@ -174,40 +183,54 @@ int main(int argc, char **argv) {
   int dd = ble_init();
   uint8_t filter_type = 0, filter_dup = 0;
 
-  /* Drop privs */
-  const char *user;
-  if (config_lookup_string(&cfg, "user", &user)) {
-    struct passwd *pw = getpwnam(user);
-    if (pw == NULL) {
-      log_error(_("Requested user '%s' not found"), user);
-      goto cleanup;
-    }
-    if (setgid(pw->pw_gid) == -1) {
-      log_error(_("Failed to drop group privileges: %s"), strerror(errno));
-      goto cleanup;
-    }
-    if (setuid(pw->pw_uid) == -1) {
-      log_error(_("Failed to drop user privileges: %s"), strerror(errno));
-      goto cleanup;
-    }
-    log_notice(_("Dropped privileges to %s (%d:%d)\n)"), user, pw->pw_uid, pw->pw_gid);
+  /* Who do we run as? */
+  char *user = NULL;
+  if (!m_config.user) {
+    config_lookup_string(&cfg, "user", (const char **) &user);
   } else {
-    log_warn(_("No 'user' specified in config file; keeping root privleges\n"));
+    user = m_config.user;
   }
-  
-  /* Loop through scan results */
-  err = ble_scan_loop(dd, filter_type);
-  if (err < 0) {
-    log_error(_("Could not receive advertising events: %s"), strerror(errno));
-    ret = ERR_SCAN_FAIL;
+  int child_pid = fork();
+  if (child_pid < 0) {
+    log_error(_("Failed to spawn child"), strerror(errno));
     goto cleanup;
   }
- 
- cleanup:
+  if (child_pid > 0) {
+    /* In the parent */
+    wait(NULL);
+  } else {
+    /* In the child */
+    if (!user) {
+      log_warn(_("No 'user' specified in config file; keeping root privleges\n"));
+    } else {
+      struct passwd *pw = getpwnam(user);
+      if (pw == NULL) {
+	log_error(_("Requested user '%s' not found"), user);
+	goto cleanup;
+      }
+      if (setgid(pw->pw_gid) == -1) {
+	log_error(_("Failed to drop group privileges: %s"), strerror(errno));
+	goto cleanup;
+      }
+      if (setuid(pw->pw_uid) == -1) {
+	log_error(_("Failed to drop user privileges: %s"), strerror(errno));
+	goto cleanup;
+      }
+      log_notice(_("Dropped privileges to %s (%d:%d)\n)"), user, pw->pw_uid, pw->pw_gid);
+    }
+      /* Loop through scan results */
+      ble_scan_loop(dd, filter_type);
+  }
+  
+cleanup:
   config_destroy(&cfg);
-  free(m_config.config_file);
+  /* free(m_config.config_file); */
+  /* free(m_config.user); */
   hci_le_set_scan_enable(dd, 0x00, filter_dup, 1000);
   hci_close_dev(dd);
+  kill(child_pid, SIGTERM);
+  wait(NULL);
   return ret;
 }
+  
 

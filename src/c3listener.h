@@ -25,7 +25,7 @@
 
 #define MAX_HASH_CB 5
 
-int ble_scan_loop(int, uint8_t);
+void ble_scan_loop(int, uint8_t);
 int ble_init(void);
 int m_cleanup(int);
 void log_stdout(const char *, ...);
@@ -40,6 +40,7 @@ typedef struct configuration {
   bool configured;
   char hostname[HOSTNAME_MAX_LEN], *config_file;
   double path_loss;
+  char *user;
 } c3_config_t;
 
 typedef struct advdata {
