@@ -116,8 +116,12 @@ int main(int argc, char **argv) {
 	break;
   }
   
-  /* Parse config */  
+  /* Parse config */
+#ifdef GIT_REVISION
+  log_stdout("Starting c3listener v%s\n", GIT_REVISION);
+#else
   log_stdout("Starting c3listener v%s\n", PACKAGE_VERSION);
+#endif
   config_init(&cfg);
   if (!m_config.config_file) {
     char *default_config = SYSCONFDIR"/c3listener.conf";
