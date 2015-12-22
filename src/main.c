@@ -1,4 +1,5 @@
 #include <getopt.h>
+#include <pwd.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -139,41 +140,60 @@ int main(int argc, char **argv) {
     goto cleanup;
   }
 
-  if (!m_config.configured) {
-    if (config_lookup_string(&cfg, "server", (const char**)&m_config.server)) {
-      log_notice(_("Using host: %s\n"), m_config.server);
-      m_config.configured = true;
-    }
-    else {
-      log_warn("No 'server' setting in configuration file, using 127.0.0.1.\n");
-      m_config.server = "127.0.0.1";
-    }
-    if (config_lookup_string(&cfg, "port", (const char **)&m_config.port)) {
-      log_notice(_("Using port: %s\n"), m_config.port);
-      m_config.configured = true;
-    }
-    else {
-      log_warn("No 'port' setting in configuration file, using 9999.\n");
-      m_config.port = "9999";
-    }
-    const char *path_loss_buf;
-    if (config_lookup_string(&cfg, "path_loss", &path_loss_buf)) {
-      m_config.path_loss = strtof(path_loss_buf, NULL);
-    } else {
-      m_config.path_loss = 0;
-    }
-    if (m_config.path_loss == 0) {
-      m_config.path_loss = DEFAULT_PATH_LOSS_EXP;
-      log_warn(_("RSSI Path Loss invalid or not provided\n"));
-    }
-    log_notice(_("Using Path Loss constant: %f\n"), m_config.path_loss);
-    
+  if (config_lookup_string(&cfg, "server", (const char**)&m_config.server)) {
+    log_notice(_("Using host: %s\n"), m_config.server);
+    m_config.configured = true;
   }
+  else {
+    log_warn("No 'server' setting in configuration file, using 127.0.0.1.\n");
+    m_config.server = "127.0.0.1";
+  }
+  if (config_lookup_string(&cfg, "port", (const char **)&m_config.port)) {
+    log_notice(_("Using port: %s\n"), m_config.port);
+    m_config.configured = true;
+  }
+  else {
+    log_warn("No 'port' setting in configuration file, using 9999.\n");
+    m_config.port = "9999";
+  }
+  const char *path_loss_buf;
+  if (config_lookup_string(&cfg, "path_loss", &path_loss_buf)) {
+    m_config.path_loss = strtof(path_loss_buf, NULL);
+  } else {
+    m_config.path_loss = 0;
+  }
+  if (m_config.path_loss == 0) {
+    m_config.path_loss = DEFAULT_PATH_LOSS_EXP;
+    log_warn(_("RSSI Path Loss invalid or not provided\n"));
+  }
+  log_notice(_("Using Path Loss constant: %f\n"), m_config.path_loss);
+  
   gethostname(m_config.hostname, HOSTNAME_MAX_LEN);
   report_init();
 
   int dd = ble_init();
   uint8_t filter_type = 0, filter_dup = 0;
+
+  /* Drop privs */
+  const char *user;
+  if (config_lookup_string(&cfg, "user", &user)) {
+    struct passwd *pw = getpwnam(user);
+    if (pw == NULL) {
+      log_error(_("Requested user '%s' not found"), user);
+      goto cleanup;
+    }
+    if (setgid(pw->pw_gid) == -1) {
+      log_error(_("Failed to drop group privileges: %s"), strerror(errno));
+      goto cleanup;
+    }
+    if (setuid(pw->pw_uid) == -1) {
+      log_error(_("Failed to drop user privileges: %s"), strerror(errno));
+      goto cleanup;
+    }
+    log_notice(_("Dropped privileges to %s (%d:%d)\n)"), user, pw->pw_uid, pw->pw_gid);
+  } else {
+    log_warn(_("No 'user' specified in config file; keeping root privleges\n"));
+  }
   
   /* Loop through scan results */
   err = ble_scan_loop(dd, filter_type);
