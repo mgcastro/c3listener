@@ -43,6 +43,7 @@ typedef struct configuration {
   char hostname[HOSTNAME_MAX_LEN], *config_file;
   double path_loss, haab;
   int8_t antenna_cor;
+  int16_t report_interval;
   char *user;
 } c3_config_t;
 

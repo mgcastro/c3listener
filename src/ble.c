@@ -114,7 +114,7 @@ void ble_scan_loop(int dd, uint8_t filter_type) {
     le_advertising_info *info;
 
     /* Max interval for walker_cb callback = REPORT_INTERVAL_MSEC + REPORT_INTERVAL_MSEC / 4 */
-    poll_ret = poll(sockets, 2, REPORT_INTERVAL_MSEC);
+    poll_ret = poll(sockets, 2, m_config.report_interval);
     ts = time_now();
     if (poll_ret > 0) {
       if (sockets[1].revents & POLLIN) {
@@ -178,7 +178,7 @@ void ble_scan_loop(int dd, uint8_t filter_type) {
     void *args[MAX_HASH_CB] = {NULL};
     
     if (isnan(last_report_attempt) ||
-	ts - last_report_attempt > REPORT_INTERVAL_MSEC / 1000.0) {
+	ts - last_report_attempt > m_config.report_interval / 1000.0) {
       report_clear();
       report_header(REPORT_VERSION_0, REPORT_PACKET_TYPE_DATA);
       func[cb_idx] = report_beacon;

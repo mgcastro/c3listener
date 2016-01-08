@@ -202,6 +202,19 @@ int main(int argc, char **argv) {
   }
   log_notice(_("Correcting Antenna gain by %ddBm\n"), m_config.antenna_cor);
 
+  /* Parse report interval */
+  const char *interval_buf;
+  if (config_lookup_string(&cfg, "report_interval", &interval_buf)) {
+  m_config.report_interval = strtol(interval_buf, NULL, 10);
+  } else {
+    m_config.report_interval = 0;
+  }
+  if (m_config.report_interval == 0) {
+    m_config.report_interval = REPORT_INTERVAL_MSEC;
+    log_warn(_("Report interval invalid or not provided\n"));
+  }
+  log_notice(_("Setting report inteval to %dms\n"), m_config.report_interval);
+
   gethostname(m_config.hostname, HOSTNAME_MAX_LEN);
   report_init();
 
