@@ -17,8 +17,10 @@
 				  heard from the server in for this
 				  long */
 
-#define MAX_PATH_LOSS_DIGITS 5 /* How many significant figures in rssi calibration */
 #define DEFAULT_PATH_LOSS_EXP 4
+#define DEFAULT_HAAB 0
+#define DEFAULT_ANTENNA_COR 0
+
 
 #define GC_INTERVAL_SEC (MAX_BEACON_INACTIVE_SEC / 2) /* How often to check for inactive beacons */
 #define KEEP_ALIVE_SEC 30
@@ -39,7 +41,8 @@ typedef struct configuration {
   char *port;
   bool configured;
   char hostname[HOSTNAME_MAX_LEN], *config_file;
-  double path_loss;
+  double path_loss, haab;
+  int8_t antenna_cor;
   char *user;
 } c3_config_t;
 

@@ -131,7 +131,7 @@ int main(int argc, char **argv) {
 #ifdef GIT_REVISION
   log_notice("Starting ble-udp-bridge (%s)\n", GIT_REVISION);
 #else
-  log_notice("Starting c3listener v%s\n", PACKAGE_VERSION);
+  log_notice("Starting ble-udp-bridge v%s\n", PACKAGE_VERSION);
 #endif
   config_init(&cfg);
   if (!m_config.config_file) {
@@ -165,6 +165,7 @@ int main(int argc, char **argv) {
     log_warn("No 'port' setting in configuration file, using 9999.\n");
     m_config.port = "9999";
   }
+  /* Parse path_loss */
   const char *path_loss_buf;
   if (config_lookup_string(&cfg, "path_loss", &path_loss_buf)) {
     m_config.path_loss = strtof(path_loss_buf, NULL);
@@ -176,7 +177,31 @@ int main(int argc, char **argv) {
     log_warn(_("RSSI Path Loss invalid or not provided\n"));
   }
   log_notice(_("Using Path Loss constant: %f\n"), m_config.path_loss);
-  
+  /* Parse HAAB */
+  const char *haab_buf;
+  if (config_lookup_string(&cfg, "haab", &haab_buf)) {
+    m_config.haab = strtof(haab_buf, NULL);
+  } else {
+    m_config.haab = 0;
+  }
+  if (m_config.haab == 0) {
+    m_config.haab = DEFAULT_HAAB;
+    log_warn(_("HAAB invalid or not provided\n"));
+  }
+  log_notice(_("Using HAAB constant: %fm\n"), m_config.haab);
+  /* Parse Antenna correction */
+  const char *antenna_buf;
+  if (config_lookup_string(&cfg, "antenna_correction", &antenna_buf)) {
+  m_config.antenna_cor = strtol(antenna_buf, NULL, 10);
+  } else {
+    m_config.antenna_cor = 0;
+  }
+  if (m_config.antenna_cor == 0) {
+    m_config.antenna_cor = DEFAULT_ANTENNA_COR;
+    log_warn(_("Antenna correction invalid or not provided\n"));
+  }
+  log_notice(_("Correcting Antenna gain by %ddBm\n"), m_config.antenna_cor);
+
   gethostname(m_config.hostname, HOSTNAME_MAX_LEN);
   report_init();
 
