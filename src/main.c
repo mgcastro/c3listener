@@ -57,6 +57,8 @@ int main(int argc, char **argv) {
   signal (SIGINT, sigint_handler);
   signal (SIGTERM, sigint_handler);
   signal (SIGHUP, sigint_handler);
+  int dd = ble_init(), child_pid = -1;
+  uint8_t filter_type = 0, filter_dup = 0;
   if(setjmp(cleanup))
     goto cleanup;
   /* Initialize i18n */ 
@@ -69,7 +71,7 @@ int main(int argc, char **argv) {
 #endif /* HAVE_GETTEXT */
   
   /* Parse command line options */
-  int ret, c, logging = 0;
+  int c, logging = 0;
   while (1) {
       static struct option long_options[] =
         {
@@ -145,8 +147,7 @@ int main(int argc, char **argv) {
     log_error(_("Problem with config file: %s: %s:%d - %s\n"),
             m_config.config_file, config_error_file(&cfg), config_error_line(&cfg),
             config_error_text(&cfg));
-    ret = ERR_BAD_CONFIG;
-    goto cleanup;
+    exit(1);
   }
 
   if (config_lookup_string(&cfg, "server", (const char**)&m_config.server)) {
@@ -218,9 +219,6 @@ int main(int argc, char **argv) {
   gethostname(m_config.hostname, HOSTNAME_MAX_LEN);
   report_init();
 
-  int dd = ble_init();
-  uint8_t filter_type = 0, filter_dup = 0;
-
   /* Who do we run as? */
   char *user = NULL;
   if (!m_config.user) {
@@ -228,7 +226,7 @@ int main(int argc, char **argv) {
   } else {
     user = m_config.user;
   }
-  int child_pid = fork();
+  child_pid = fork();
   if (child_pid < 0) {
     log_error(_("Failed to spawn child"), strerror(errno));
     goto cleanup;
@@ -266,9 +264,11 @@ cleanup:
   /* free(m_config.user); */
   hci_le_set_scan_enable(dd, 0x00, filter_dup, 1000);
   hci_close_dev(dd);
-  kill(child_pid, SIGTERM);
-  wait(NULL);
-  return ret;
+  if (child_pid > 1) {
+    kill(child_pid, SIGTERM);
+    wait(NULL);
+  }
+  return errno;
 }
   
 

@@ -135,7 +135,6 @@ void ble_scan_loop(int dd, uint8_t filter_type) {
 	  exit(errno);
 	}
 	ptr = buf + (1 + HCI_EVENT_HDR_SIZE);
-	len -= (1 + HCI_EVENT_HDR_SIZE);
 	
 	meta = (void *)ptr;
 	

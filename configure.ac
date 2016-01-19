@@ -27,7 +27,7 @@ AC_TYPE_UINT16_T
 AC_TYPE_UINT8_T
 
 # Checks for library functions.
-AC_FUNC_MALLOC
+#AC_FUNC_MALLOC
 AC_CHECK_FUNCS([gethostname memset setlocale])
 
 AC_CONFIG_FILES([Makefile po/Makefile.in
