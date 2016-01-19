@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "kalman.h"
 
@@ -29,8 +30,6 @@
 
 void ble_scan_loop(int, uint8_t);
 int ble_init(void);
-int m_cleanup(int);
-void log_stdout(const char *, ...);
 int udp_send(uint8_t *, uint8_t);
 int udp_init(char *, char *);
 void udp_cleanup(void);
@@ -53,18 +52,5 @@ typedef struct advdata {
   int data_len;
   int rssi;
 } adv_data_t;
-
-
-enum c3error {
-  ERR_SUCCESS = 0,
-  ERR_SCAN_ENABLE_FAIL,
-  ERR_SCAN_DISABLE_FAIL,
-  ERR_SCAN_FAIL,
-  ERR_NO_BLUETOOTH_DEV,
-  ERR_BLE_NOT_SUPPORTED,
-  ERR_BLUEZ_SOCKET,
-  ERR_BAD_CONFIG,
-  ERR_UNKNOWN
-};
 
 #endif /* C3LISTENER_H */

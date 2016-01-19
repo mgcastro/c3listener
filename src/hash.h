@@ -2,6 +2,7 @@
 #define __HASH_H
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #define HASH_TABLE_LENGTH 251 /* Ought to be prime and approximately
 				 as large as expected number of

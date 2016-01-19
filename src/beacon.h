@@ -1,6 +1,7 @@
 #ifndef __BEACON_H
 #define __BEACON_H
 
+#include <stdint.h>
 #include "kalman.h"
 
 typedef struct ibeacon {

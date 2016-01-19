@@ -7,17 +7,6 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/socket.h>
-#include <setjmp.h>
-jmp_buf cleanup;
-#include <signal.h>
-
-void sigint_handler (int signum)
-{
-  signal (SIGINT, SIG_DFL);
-  signal (SIGTERM, SIG_DFL);
-  signal (SIGHUP, SIG_DFL);
-  longjmp (cleanup, 0);
-}
 
 #include <string.h>
 #include <errno.h>
@@ -52,13 +41,35 @@ config_t cfg;
 
 /* Config and other globals */
 c3_config_t m_config = {.configured = false };
-int verbose_flag;
+int debug_flag = 0;
+int dd = 0, child_pid = 0;
+const uint8_t filter_type = 0, filter_dup = 0;
+
+#include <signal.h>
+
+void sigint_handler(int signum) {
+  log_notice("Parent got signal: %d\n", signum);
+  if (child_pid > 0) {
+    /* If the child has been started, we need to kill it */
+    log_notice("Killing scanning process\n");
+    kill(child_pid, SIGTERM);
+  }
+  config_destroy(&cfg);
+  if (hci_le_set_scan_enable(dd, 0x00, filter_dup, 1000) < 0){
+    log_error(_("Disable scan failed"), strerror(errno));
+  } else {
+    log_notice("Scan disabled\n");
+  }
+  if (hci_close_dev(dd) < 0) {
+    log_error("Closing HCI Socket Failed\n");
+  } else {
+    log_notice("HCI Socket Closed\n");
+  }
+  fflush(stdout);
+  exit(errno);
+}
 
 int main(int argc, char **argv) {
-  int dd = ble_init(), child_pid = -1;
-  uint8_t filter_type = 0, filter_dup = 0;
-  if(setjmp(cleanup))
-    goto cleanup;
   /* Initialize i18n */ 
 #ifdef HAVE_SETLOCALE
   setlocale(LC_ALL, "");
@@ -69,23 +80,22 @@ int main(int argc, char **argv) {
 #endif /* HAVE_GETTEXT */
   
   /* Parse command line options */
-  int c, logging = 0;
+  int c;
   while (1) {
       static struct option long_options[] =
         {
           /* These options set a flag. */
-          {"verbose", no_argument,       &verbose_flag, 1},
+          {"debug", no_argument,       &debug_flag, 1},
           /* These options don’t set a flag.
              We distinguish them by their indices. */
           {"config",  required_argument, 0, 'c'},
-	  {"log",  required_argument, 0, 'l'},
 	  {"user", required_argument, 0, 'u'},
 	  {0, 0, 0, 0}
         };
       /* getopt_long stores the option index here. */
       int option_index = 0;
 
-      c = getopt_long (argc, argv, "l:dvc:u:",
+      c = getopt_long (argc, argv, "dc:u:",
                        long_options, &option_index);
 
       /* Detect the end of the options. */
@@ -98,14 +108,6 @@ int main(int argc, char **argv) {
 	  m_config.config_file = malloc(strlen(optarg)+1);
 	  memcpy(m_config.config_file, optarg, strlen(optarg)+1);
           break;
-	case 'l':
-	  logging = 1;
-	  freopen(optarg, "a", stdout);
-	  freopen(optarg, "a", stderr);
-          break;
-	case 'v':
-	  verbose_flag=1;
-	  break;
 	case 'u':
 	  m_config.user = malloc(strlen(optarg)+1);
 	  memset(m_config.user, 0, strlen(optarg)+1);
@@ -115,24 +117,23 @@ int main(int argc, char **argv) {
           /* getopt_long already printed an error message. */
           break;
 	case 'd':
-	  /* Daemonize */
-	  if (logging)
-	    daemon(0,1);
-	  else
-	    daemon(0,0);
+	  /* Debug, keep in foreground */
+	  debug_flag=1;
 	  break;
         }
       if (c == -1)
 	break;
   }
-
+  
   log_init();
-  /* Parse config */
+
 #ifdef GIT_REVISION
   log_notice("Starting ble-udp-bridge (%s)\n", GIT_REVISION);
 #else
   log_notice("Starting ble-udp-bridge v%s\n", PACKAGE_VERSION);
 #endif
+  
+  /* Parse config */
   config_init(&cfg);
   if (!m_config.config_file) {
     char *default_config = SYSCONFDIR"/c3listener.conf";
@@ -214,8 +215,20 @@ int main(int argc, char **argv) {
   }
   log_notice(_("Setting report inteval to %dms\n"), m_config.report_interval);
 
+  /* Daemonize */
+  if (!debug_flag) {
+    if(daemon(0,0)) {
+      perror("Daemonizing failed");
+      exit(errno);
+    }
+  }
+
   gethostname(m_config.hostname, HOSTNAME_MAX_LEN);
   report_init();
+  
+  /* Open HCI socket before we drop privs, so child inheirits */
+  
+  dd = ble_init();
 
   /* Who do we run as? */
   char *user = NULL;
@@ -227,19 +240,36 @@ int main(int argc, char **argv) {
   child_pid = fork();
   if (child_pid < 0) {
     log_error(_("Failed to spawn child"), strerror(errno));
-    goto cleanup;
+    raise(SIGTERM); /* Cleanup BLE and Config */
+    exit(errno);
   }
   if (child_pid > 0) {
-    /* In the parent */
-    signal (SIGINT, sigint_handler);
-    signal (SIGTERM, sigint_handler);
-    signal (SIGHUP, sigint_handler);
-cleanup:
-    wait(NULL);
-    config_destroy(&cfg);
-    hci_le_set_scan_enable(dd, 0x00, filter_dup, 1000);
-    hci_close_dev(dd);
-    exit(0);
+    /* We are parent */
+    /* Set the signal handlers to cleanup BLE priv. socket */
+    signal(SIGINT, sigint_handler);
+    signal(SIGTERM, sigint_handler);
+    signal(SIGHUP, sigint_handler);
+    int status;
+    while (true) {
+      /* Loop for child events, if the child exits; then cleanup */
+      pid_t pid = waitpid(-1, &status, 0);
+      /* If the parent was signaled, the signal handler will never
+	 give back control. So we should only reach this code if the
+	 child exits or receives a signal */
+      if (WIFSIGNALED(status) || WIFEXITED(status)) {
+	/* A child has ended */
+	if (WIFSIGNALED(status)) {
+	  log_notice("Child %d exited by signal: %s", pid, strsignal(WTERMSIG(status)));
+	} else {
+	  log_notice("Child %d exited status: %s\n", pid, strerror(errno));
+	}
+	/* Clear child_pid so the signal handler doesn't try to kill
+	   it again */
+	child_pid = 0;
+	/* Kill the gibson */
+	raise(SIGTERM);
+      }
+    }
   } else {
     /* In the child */
     if (!user) {
@@ -248,23 +278,26 @@ cleanup:
       struct passwd *pw = getpwnam(user);
       if (pw == NULL) {
 	log_error(_("Requested user '%s' not found"), user);
-	goto cleanup;
+	raise(SIGTERM);
+	exit(EINVAL);
       }
       if (setgid(pw->pw_gid) == -1) {
 	log_error(_("Failed to drop group privileges: %s"), strerror(errno));
-	goto cleanup;
+	raise(SIGTERM);
+	exit(errno);
       }
       if (setuid(pw->pw_uid) == -1) {
 	log_error(_("Failed to drop user privileges: %s"), strerror(errno));
-	goto cleanup;
+	raise(SIGTERM);
+	exit(errno);
       }
       log_notice(_("Dropped privileges to %s (%d:%d)\n)"), user, pw->pw_uid, pw->pw_gid);
     }
-      /* Loop through scan results */
-      ble_scan_loop(dd, filter_type);
+    /* Loop through scan results */
+    ble_scan_loop(dd, filter_type);
   }
-  
   return errno;
 }
+
   
 

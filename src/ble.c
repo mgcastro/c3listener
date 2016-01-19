@@ -23,7 +23,6 @@
 #include "time_util.h"
 
 extern c3_config_t m_config;
-extern jmp_buf cleanup;
 
 #ifdef HAVE_GETTEXT
 #include "gettext.h"
@@ -31,6 +30,8 @@ extern jmp_buf cleanup;
 #else
 #define _(string) string
 #endif /* HAVE_GETTEXT */
+
+extern int dd;
 
 char *hexlify(const uint8_t* src, size_t n) {
   char *buf = malloc(n*2+1);
@@ -43,41 +44,41 @@ char *hexlify(const uint8_t* src, size_t n) {
 
 int ble_init(void) {
   /* Always happens in parent running as root */
-  int dev_id = 0, dd;
-  int err;
+  int dev_id = 0;
+  int err, dd;
   uint8_t own_type = 0x00;
   uint8_t scan_type = 0x01;
   uint8_t filter_policy = 0x00;
   uint16_t interval = htobs(0x00F0); 
   uint16_t window = htobs(0x00F0); 
 
-  if (dev_id < 0)
-    dev_id = hci_get_route(NULL);
+  dev_id = hci_get_route(NULL);
 
   dd = hci_open_dev(dev_id);
   
   if (dd < 0) {
     log_error(_("Could not open bluetooth device"), strerror(errno));
-    longjmp(cleanup, 0);
+    exit(errno);
   }
 
   err = hci_le_set_scan_parameters(dd, scan_type, interval, window, own_type,
                                    filter_policy, 1000);
   if (err < 0) {
     log_error(_("Set scan parameters failed"), strerror(errno));
-    longjmp(cleanup, 0);
+    exit(errno);
   }
 
   uint8_t filter_dup = 0;
   err = hci_le_set_scan_enable(dd, 0x1, filter_dup, 1000);
   if (err < 0) {
     log_error(_("Enable scan failed"), strerror(errno));
-    longjmp(cleanup, 0);
+    exit(errno);
   }
   struct hci_filter nf, of;
   socklen_t olen = sizeof(of);
   if (getsockopt(dd, SOL_HCI, HCI_FILTER, &of, &olen) < 0) {
     log_error(_("Could not get socket options"), strerror(errno));
+    raise(SIGTERM); /* Need to cleanup BLE explicitly once we start the scan */
     exit(errno);
   }
 
@@ -87,6 +88,7 @@ int ble_init(void) {
 
   if (setsockopt(dd, SOL_HCI, HCI_FILTER, &nf, sizeof(nf)) < 0) {
     log_error(_("Could not set socket options"), strerror(errno));
+    raise(SIGTERM);
     exit(errno);
   }
   fcntl(dd, F_SETFL, O_NONBLOCK);
@@ -94,7 +96,8 @@ int ble_init(void) {
 }
 
 void ble_scan_loop(int dd, uint8_t filter_type) {
-  /* Always happens in child; error route should be exit/abort */
+  /* Always happens in child; error route should be exit/abort. Parent
+     will cleanup privileged sockets */
 
   unsigned char buf[HCI_MAX_EVENT_SIZE], *ptr;
   int len;

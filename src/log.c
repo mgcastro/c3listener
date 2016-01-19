@@ -2,10 +2,10 @@
 #include <stdio.h>
 #include <syslog.h>
 
-extern int verbose_flag;
+extern int debug_flag;
 
 void log_init(void) {
-  if (verbose_flag) {
+  if (debug_flag) {
     openlog("ble-udp-bridge", LOG_PERROR | LOG_CONS, LOG_DAEMON);
   } else {
     openlog("ble-udp-bridge", 0, LOG_DAEMON);

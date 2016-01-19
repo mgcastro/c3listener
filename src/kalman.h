@@ -2,6 +2,7 @@
 #define __KALMAN_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "hash.h"
 

@@ -26,7 +26,7 @@ void report_clear(void) {
   memset(p_buf, 0, p_buf_size);
   p_buf_pos = 0;
   b_count = 0;
-};
+}
 
 void report_init(void){
   hostlen = strnlen(m_config.hostname, HOSTNAME_MAX_LEN);
