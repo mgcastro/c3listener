@@ -264,10 +264,10 @@ cleanup:
   /* free(m_config.user); */
   hci_le_set_scan_enable(dd, 0x00, filter_dup, 1000);
   hci_close_dev(dd);
-  if (child_pid > 1) {
-    kill(child_pid, SIGTERM);
-    wait(NULL);
-  }
+  /* if (child_pid > 1) { */
+  /*   kill(child_pid, SIGTERM); */
+  /*   wait(NULL); */
+  /* } */
   return errno;
 }
   
