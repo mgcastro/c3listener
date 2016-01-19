@@ -10,11 +10,12 @@
 #include <setjmp.h>
 jmp_buf cleanup;
 #include <signal.h>
-void
-sigint_handler (int signum)
+
+void sigint_handler (int signum)
 {
-  /* We may have been waiting for input when the signal arrived,
-     but we are no longer waiting once we transfer control. */
+  signal (SIGINT, SIG_DFL);
+  signal (SIGTERM, SIG_DFL);
+  signal (SIGHUP, SIG_DFL);
   longjmp (cleanup, 0);
 }
 
@@ -54,9 +55,6 @@ c3_config_t m_config = {.configured = false };
 int verbose_flag;
 
 int main(int argc, char **argv) {
-  signal (SIGINT, sigint_handler);
-  signal (SIGTERM, sigint_handler);
-  signal (SIGHUP, sigint_handler);
   int dd = ble_init(), child_pid = -1;
   uint8_t filter_type = 0, filter_dup = 0;
   if(setjmp(cleanup))
@@ -233,7 +231,15 @@ int main(int argc, char **argv) {
   }
   if (child_pid > 0) {
     /* In the parent */
+    signal (SIGINT, sigint_handler);
+    signal (SIGTERM, sigint_handler);
+    signal (SIGHUP, sigint_handler);
+cleanup:
     wait(NULL);
+    config_destroy(&cfg);
+    hci_le_set_scan_enable(dd, 0x00, filter_dup, 1000);
+    hci_close_dev(dd);
+    exit(0);
   } else {
     /* In the child */
     if (!user) {
@@ -258,16 +264,6 @@ int main(int argc, char **argv) {
       ble_scan_loop(dd, filter_type);
   }
   
-cleanup:
-  config_destroy(&cfg);
-  /* free(m_config.config_file); */
-  /* free(m_config.user); */
-  hci_le_set_scan_enable(dd, 0x00, filter_dup, 1000);
-  hci_close_dev(dd);
-  /* if (child_pid > 1) { */
-  /*   kill(child_pid, SIGTERM); */
-  /*   wait(NULL); */
-  /* } */
   return errno;
 }
   
