@@ -171,7 +171,7 @@ void ble_scan_loop(int dd, uint8_t filter_type) {
 	  }
 	  b->tx_power = (b->count * b->tx_power + tx_power)/(b->count + 1);
 	  b->count++;
-	  log_debug("maj/min: %d/%d, raw: %d, ant_cor: %d, raw: %f, haab_cor: %f\n", major, minor, rssi, rssi_cor, raw_dist, b->distance, tx_power);
+	  log_debug("maj/min: %d/%d, raw/ant_cor: %d/%d, raw/haab: %f/%f, var: %f\n", major, minor, rssi, rssi_cor, raw_dist, b->distance, tx_power, b->kalman.P[0][0]);
 	}
       }
     }

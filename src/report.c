@@ -15,7 +15,7 @@
 
 extern c3_config_t m_config;
 
-#define BEACON_REPORT_SIZE (16+sizeof(uint16_t)*3+sizeof(int16_t))
+#define BEACON_REPORT_SIZE (16+sizeof(uint16_t)*3+sizeof(int16_t)*2)
 
 static uint8_t *p_buf = NULL;
 static int p_buf_pos = 0,
@@ -90,6 +90,9 @@ void *report_beacon(void *a, void *unused) {
   uint16_t dist = round(b->distance * 100);
   *(p++) = (uint8_t)(dist >> 8);
   *(p++) = (uint8_t)(dist);
+  uint16_t variance = round(b->kalman.P[0][0] * 100);
+  *(p++) = (uint8_t)(variance >> 8);
+  *(p++) = (uint8_t)(variance);
   p_buf_pos += p-q;
   b->count = 0;
   return a;
