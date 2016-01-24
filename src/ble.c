@@ -164,14 +164,15 @@ void ble_scan_loop(int dd, uint8_t filter_type) {
 	  uint16_t major = info->data[25] << 8 | info->data[26];
 	  uint16_t minor = info->data[27] << 8 | info->data[28];
 	  beacon_t* b = beacon_find_or_add(uuid, major, minor);
-	  double raw_dist = pow(10, (tx_power-kalman(b, rssi_cor, ts))/(10*m_config.path_loss));
-	  b->distance = sqrt(pow(raw_dist, 2)-pow(m_config.haab, 2));
+	  double dist = pow(10, (tx_power-kalman(b, rssi_cor, ts))/(10*m_config.path_loss));
+	  double raw_dist = pow(10, ((tx_power-rssi)/(10*m_config.path_loss)));
+	  b->distance = sqrt(pow(dist, 2)-pow(m_config.haab, 2));
 	  if (isnan(b->distance)) {
 	    b->distance = 0;
 	  }
 	  b->tx_power = (b->count * b->tx_power + tx_power)/(b->count + 1);
 	  b->count++;
-	  log_debug("maj/min: %d/%d, raw/ant_cor: %d/%d, raw/haab: %f/%f, var: %f\n", major, minor, rssi, rssi_cor, raw_dist, b->distance, tx_power, b->kalman.P[0][0]);
+	  log_debug("maj/min: %d/%d, raw/flt: %f/%f, var: %f\n", major, minor, raw_dist, b->distance, b->kalman.P[0][0]);
 	}
       }
     }
