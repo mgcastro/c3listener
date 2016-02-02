@@ -42,9 +42,8 @@ char *hexlify(const uint8_t* src, size_t n) {
   return buf;
 }
 
-int ble_init(void) {
+int ble_init(int dev_id) {
   /* Always happens in parent running as root */
-  int dev_id = 0;
   int err, dd;
   uint8_t own_type = 0x00;
   uint8_t scan_type = 0x01;

@@ -30,10 +30,12 @@ config_t cfg;
 /* Config and other globals */
 c3_config_t m_config = {.configured = false };
 int debug_flag = 0;
-int dd = 0, child_pid = 0;
+int dev_id = 0, dd = 0, child_pid = 0;
 const uint8_t filter_type = 0, filter_dup = 0;
 
 #include <signal.h>
+
+
 
 void sigint_handler(int signum) {
   log_notice("Parent got signal: %d\n", signum);
@@ -53,20 +55,11 @@ void sigint_handler(int signum) {
   } else {
     log_notice("HCI Socket Closed\n");
   }
-  fflush(stdout);
+  fflush(stderr);
   exit(errno);
 }
 
 int main(int argc, char **argv) {
-  /* Initialize i18n */ 
-#ifdef HAVE_SETLOCALE
-  setlocale(LC_ALL, "");
-#endif /* HAVE_SETLOCALE */
-#ifdef HAVE_GETTEXT
-  bindtextdomain(PACKAGE, LOCALEDIR);
-  textdomain(PACKAGE);
-#endif /* HAVE_GETTEXT */
-  
   /* Parse command line options */
   int c;
   while (1) {
@@ -78,12 +71,13 @@ int main(int argc, char **argv) {
              We distinguish them by their indices. */
           {"config",  required_argument, 0, 'c'},
 	  {"user", required_argument, 0, 'u'},
+	  {"interface", required_argument, 0, 'i'},
 	  {0, 0, 0, 0}
         };
       /* getopt_long stores the option index here. */
       int option_index = 0;
 
-      c = getopt_long (argc, argv, "dc:u:",
+      c = getopt_long (argc, argv, "dc:u:i:",
                        long_options, &option_index);
 
       /* Detect the end of the options. */
@@ -92,6 +86,14 @@ int main(int argc, char **argv) {
 
       switch (c)
         {
+	 case 'i':
+	   dev_id = hci_devid(optarg);
+	   if (dev_id < 0) {
+	     fprintf(stderr, "Error opening device %s: %s\n", optarg, strerror(errno));
+	     fflush(stderr);
+	     exit(errno);
+	   }
+	   break;
         case 'c':
 	  m_config.config_file = malloc(strlen(optarg)+1);
 	  memcpy(m_config.config_file, optarg, strlen(optarg)+1);
@@ -112,9 +114,8 @@ int main(int argc, char **argv) {
       if (c == -1)
 	break;
   }
-  
-  log_init();
 
+  log_init();
   log_notice("Starting ble-udp-bridge %s\n", PACKAGE_VERSION);
   
   /* Parse config */
@@ -132,6 +133,19 @@ int main(int argc, char **argv) {
             config_error_text(&cfg));
     exit(1);
   }
+  
+  if (config_lookup_string(&cfg, "interface", (const char**)&m_config.interface)){
+    if (dev_id == 0) {
+      /* CLI should override config file */
+      dev_id = hci_devid(m_config.interface);
+      if (dev_id < 0) {
+	log_error("Error opening device %s: %s", m_config.interface, strerror(errno));
+	exit(errno);
+      }
+    }
+  }
+
+  dd = ble_init(dev_id);
 
   if (config_lookup_string(&cfg, "server", (const char**)&m_config.server)) {
     log_notice("Using host: %s\n", m_config.server);
@@ -209,10 +223,6 @@ int main(int argc, char **argv) {
 
   gethostname(m_config.hostname, HOSTNAME_MAX_LEN);
   report_init();
-  
-  /* Open HCI socket before we drop privs, so child inheirits */
-  
-  dd = ble_init();
 
   /* Who do we run as? */
   char *user = NULL;

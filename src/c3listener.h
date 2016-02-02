@@ -29,7 +29,7 @@
 #define MAX_HASH_CB 5
 
 void ble_scan_loop(int, uint8_t);
-int ble_init(void);
+int ble_init(int);
 int udp_send(uint8_t *, uint8_t);
 int udp_init(char *, char *);
 void udp_cleanup(void);
@@ -44,6 +44,7 @@ typedef struct configuration {
   int8_t antenna_cor;
   int16_t report_interval;
   char *user;
+  char *interface;
 } c3_config_t;
 
 typedef struct advdata {
