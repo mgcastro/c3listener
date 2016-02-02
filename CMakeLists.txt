@@ -21,3 +21,4 @@ file(GLOB c3listener_SRC
 add_definitions(-DSYSCONFDIR=\"${CMAKE_INSTALL_PREFIX}/etc\" -DPACKAGE_VERSION=\"${PACKAGE_VERSION}\")
 add_executable(c3listener ${c3listener_SRC})
 target_link_libraries(c3listener m ${CONFIG_LIBRARY} ${BLUEZ_LIBRARY})
+set_property(TARGET c3listener PROPERTY C_STANDARD 99)
