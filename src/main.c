@@ -30,7 +30,7 @@ config_t cfg;
 /* Config and other globals */
 c3_config_t m_config = {.configured = false };
 int debug_flag = 0;
-int dev_id = 0, dd = 0, child_pid = 0;
+int dev_id = -1, dd = 0, child_pid = 0;
 const uint8_t filter_type = 0, filter_dup = 0;
 
 #include <signal.h>
@@ -87,12 +87,7 @@ int main(int argc, char **argv) {
       switch (c)
         {
 	 case 'i':
-	   dev_id = hci_devid(optarg);
-	   if (dev_id < 0) {
-	     fprintf(stderr, "Error opening device %s: %s\n", optarg, strerror(errno));
-	     fflush(stderr);
-	     exit(errno);
-	   }
+	   dev_id = atoi(optarg+3);
 	   break;
         case 'c':
 	  m_config.config_file = malloc(strlen(optarg)+1);
@@ -135,13 +130,9 @@ int main(int argc, char **argv) {
   }
   
   if (config_lookup_string(&cfg, "interface", (const char**)&m_config.interface)){
-    if (dev_id == 0) {
+    if (dev_id < 0) {
       /* CLI should override config file */
-      dev_id = hci_devid(m_config.interface);
-      if (dev_id < 0) {
-	log_error("Error opening device %s: %s", m_config.interface, strerror(errno));
-	exit(errno);
-      }
+      dev_id = atoi(m_config.interface+3);
     }
   }
 
