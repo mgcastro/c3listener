@@ -2,11 +2,11 @@
 #include <fcntl.h>
 #include <math.h>
 #include <poll.h>
-#include <setjmp.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include <signal.h>
+#include <sys/ioctl.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -42,21 +42,38 @@ char *hexlify(const uint8_t* src, size_t n) {
   return buf;
 }
 
-int ble_init(void) {
+int ble_init(int dev_id) {
   /* Always happens in parent running as root */
-  int dev_id = 0;
-  int err, dd;
+  int ctl, err, dd;
   uint8_t own_type = 0x00;
   uint8_t scan_type = 0x01;
   uint8_t filter_policy = 0x00;
   uint16_t interval = htobs(0x00F0); 
   uint16_t window = htobs(0x00F0); 
 
-  dev_id = hci_get_route(NULL);
+  if (dev_id < 0) {
+    log_warn("Bluetooth interface invalid or not specified, trying first interface\n");
+    dev_id = hci_get_route(NULL);
+  }
 
-  dd = hci_open_dev(dev_id);
+  /* Get a control socket so we can bring the interface up, if needed */
+  if ((ctl = socket(AF_BLUETOOTH, SOCK_RAW, BTPROTO_HCI)) < 0) {
+    log_error("Can't open HCI socket: %s", strerror(errno));
+    exit(errno);
+  }
   
-  if (dd < 0) {
+  if (ioctl(ctl, HCIDEVUP, dev_id) < 0) {
+    if (errno != EALREADY) {
+      log_error("Could not open bluetooth device", strerror(errno));
+      exit(errno);
+    } else {
+      log_notice("Using interface hci%d\n", dev_id);
+    }
+  } else {
+    log_notice("Brought up interface hci%d", dev_id);
+  }
+  
+  if ((dd = hci_open_dev(dev_id)) < 0) {
     log_error(_("Could not open bluetooth device"), strerror(errno));
     exit(errno);
   }

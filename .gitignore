@@ -1,7 +1,5 @@
+CMakeCache.txt
+CMakeFiles/
+Makefile
 c3listener
-*.o
-*~
-autom4te.cache
-m4
-src/.deps
-
+cmake_install.cmake

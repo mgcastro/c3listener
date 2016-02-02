@@ -12,8 +12,6 @@
 #include <errno.h>
 #include <assert.h>
 
-#include <config.h>
-
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
@@ -26,26 +24,18 @@
 #include "log.h"
 #include "report.h"
 
-#ifdef HAVE_GETTEXT
-#include "gettext.h"
-#define _(string) gettext(string)
-#else
-#define _(string) string
-#endif /* HAVE_GETTEXT */
-#ifdef HAVE_LOCALE_H
-#include <locale.h>
-#endif /* HAVE_LOCALE_H */
-
 #include <libconfig.h>
 config_t cfg;
 
 /* Config and other globals */
 c3_config_t m_config = {.configured = false };
 int debug_flag = 0;
-int dd = 0, child_pid = 0;
+int dev_id = -1, dd = 0, child_pid = 0;
 const uint8_t filter_type = 0, filter_dup = 0;
 
 #include <signal.h>
+
+
 
 void sigint_handler(int signum) {
   log_notice("Parent got signal: %d\n", signum);
@@ -56,7 +46,7 @@ void sigint_handler(int signum) {
   }
   config_destroy(&cfg);
   if (hci_le_set_scan_enable(dd, 0x00, filter_dup, 1000) < 0){
-    log_error(_("Disable scan failed"), strerror(errno));
+    log_error("Disable scan failed", strerror(errno));
   } else {
     log_notice("Scan disabled\n");
   }
@@ -65,20 +55,11 @@ void sigint_handler(int signum) {
   } else {
     log_notice("HCI Socket Closed\n");
   }
-  fflush(stdout);
+  fflush(stderr);
   exit(errno);
 }
 
 int main(int argc, char **argv) {
-  /* Initialize i18n */ 
-#ifdef HAVE_SETLOCALE
-  setlocale(LC_ALL, "");
-#endif /* HAVE_SETLOCALE */
-#ifdef HAVE_GETTEXT
-  bindtextdomain(PACKAGE, LOCALEDIR);
-  textdomain(PACKAGE);
-#endif /* HAVE_GETTEXT */
-  
   /* Parse command line options */
   int c;
   while (1) {
@@ -90,12 +71,13 @@ int main(int argc, char **argv) {
              We distinguish them by their indices. */
           {"config",  required_argument, 0, 'c'},
 	  {"user", required_argument, 0, 'u'},
+	  {"interface", required_argument, 0, 'i'},
 	  {0, 0, 0, 0}
         };
       /* getopt_long stores the option index here. */
       int option_index = 0;
 
-      c = getopt_long (argc, argv, "dc:u:",
+      c = getopt_long (argc, argv, "dc:u:i:",
                        long_options, &option_index);
 
       /* Detect the end of the options. */
@@ -104,6 +86,9 @@ int main(int argc, char **argv) {
 
       switch (c)
         {
+	 case 'i':
+	   dev_id = atoi(optarg+3);
+	   break;
         case 'c':
 	  m_config.config_file = malloc(strlen(optarg)+1);
 	  memcpy(m_config.config_file, optarg, strlen(optarg)+1);
@@ -124,14 +109,9 @@ int main(int argc, char **argv) {
       if (c == -1)
 	break;
   }
-  
-  log_init();
 
-#ifdef GIT_REVISION
-  log_notice("Starting ble-udp-bridge (%s)\n", GIT_REVISION);
-#else
-  log_notice("Starting ble-udp-bridge v%s\n", PACKAGE_VERSION);
-#endif
+  log_init();
+  log_notice("Starting ble-udp-bridge %s\n", PACKAGE_VERSION);
   
   /* Parse config */
   config_init(&cfg);
@@ -143,14 +123,23 @@ int main(int argc, char **argv) {
   }
   log_notice("Using config file: %s\n", m_config.config_file);
   if (!config_read_file(&cfg, m_config.config_file)) {
-    log_error(_("Problem with config file: %s: %s:%d - %s\n"),
+    log_error("Problem with config file: %s: %s:%d - %s\n",
             m_config.config_file, config_error_file(&cfg), config_error_line(&cfg),
             config_error_text(&cfg));
     exit(1);
   }
+  
+  if (config_lookup_string(&cfg, "interface", (const char**)&m_config.interface)){
+    if (dev_id < 0) {
+      /* CLI should override config file */
+      dev_id = atoi(m_config.interface+3);
+    }
+  }
+
+  dd = ble_init(dev_id);
 
   if (config_lookup_string(&cfg, "server", (const char**)&m_config.server)) {
-    log_notice(_("Using host: %s\n"), m_config.server);
+    log_notice("Using host: %s\n", m_config.server);
     m_config.configured = true;
   }
   else {
@@ -158,7 +147,7 @@ int main(int argc, char **argv) {
     m_config.server = "127.0.0.1";
   }
   if (config_lookup_string(&cfg, "port", (const char **)&m_config.port)) {
-    log_notice(_("Using port: %s\n"), m_config.port);
+    log_notice("Using port: %s\n", m_config.port);
     m_config.configured = true;
   }
   else {
@@ -174,9 +163,9 @@ int main(int argc, char **argv) {
   }
   if (m_config.path_loss == 0) {
     m_config.path_loss = DEFAULT_PATH_LOSS_EXP;
-    log_warn(_("RSSI Path Loss invalid or not provided\n"));
+    log_warn("RSSI Path Loss invalid or not provided\n");
   }
-  log_notice(_("Using Path Loss constant: %f\n"), m_config.path_loss);
+  log_notice("Using Path Loss constant: %f\n", m_config.path_loss);
   /* Parse HAAB */
   const char *haab_buf;
   if (config_lookup_string(&cfg, "haab", &haab_buf)) {
@@ -186,9 +175,9 @@ int main(int argc, char **argv) {
   }
   if (m_config.haab == 0) {
     m_config.haab = DEFAULT_HAAB;
-    log_warn(_("HAAB invalid or not provided\n"));
+    log_warn("HAAB invalid or not provided\n");
   }
-  log_notice(_("Using HAAB constant: %fm\n"), m_config.haab);
+  log_notice("Using HAAB constant: %fm\n", m_config.haab);
   /* Parse Antenna correction */
   const char *antenna_buf;
   if (config_lookup_string(&cfg, "antenna_correction", &antenna_buf)) {
@@ -198,9 +187,9 @@ int main(int argc, char **argv) {
   }
   if (m_config.antenna_cor == 0) {
     m_config.antenna_cor = DEFAULT_ANTENNA_COR;
-    log_warn(_("Antenna correction invalid or not provided\n"));
+    log_warn("Antenna correction invalid or not provided\n");
   }
-  log_notice(_("Correcting Antenna gain by %ddBm\n"), m_config.antenna_cor);
+  log_notice("Correcting Antenna gain by %ddBm\n", m_config.antenna_cor);
 
   /* Parse report interval */
   const char *interval_buf;
@@ -211,9 +200,9 @@ int main(int argc, char **argv) {
   }
   if (m_config.report_interval == 0) {
     m_config.report_interval = REPORT_INTERVAL_MSEC;
-    log_warn(_("Report interval invalid or not provided\n"));
+    log_warn("Report interval invalid or not provided\n");
   }
-  log_notice(_("Setting report inteval to %dms\n"), m_config.report_interval);
+  log_notice("Setting report inteval to %dms\n", m_config.report_interval);
 
   /* Daemonize */
   if (!debug_flag) {
@@ -225,10 +214,6 @@ int main(int argc, char **argv) {
 
   gethostname(m_config.hostname, HOSTNAME_MAX_LEN);
   report_init();
-  
-  /* Open HCI socket before we drop privs, so child inheirits */
-  
-  dd = ble_init();
 
   /* Who do we run as? */
   char *user = NULL;
@@ -239,7 +224,7 @@ int main(int argc, char **argv) {
   }
   child_pid = fork();
   if (child_pid < 0) {
-    log_error(_("Failed to spawn child"), strerror(errno));
+    log_error("Failed to spawn child", strerror(errno));
     raise(SIGTERM); /* Cleanup BLE and Config */
     exit(errno);
   }
@@ -273,25 +258,25 @@ int main(int argc, char **argv) {
   } else {
     /* In the child */
     if (!user) {
-      log_warn(_("No 'user' specified in config file; keeping root privleges\n"));
+      log_warn("No 'user' specified in config file; keeping root privleges\n");
     } else {
       struct passwd *pw = getpwnam(user);
       if (pw == NULL) {
-	log_error(_("Requested user '%s' not found"), user);
+	log_error("Requested user '%s' not found", user);
 	raise(SIGTERM);
 	exit(EINVAL);
       }
       if (setgid(pw->pw_gid) == -1) {
-	log_error(_("Failed to drop group privileges: %s"), strerror(errno));
+	log_error("Failed to drop group privileges: %s", strerror(errno));
 	raise(SIGTERM);
 	exit(errno);
       }
       if (setuid(pw->pw_uid) == -1) {
-	log_error(_("Failed to drop user privileges: %s"), strerror(errno));
+	log_error("Failed to drop user privileges: %s", strerror(errno));
 	raise(SIGTERM);
 	exit(errno);
       }
-      log_notice(_("Dropped privileges to %s (%d:%d)\n)"), user, pw->pw_uid, pw->pw_gid);
+      log_notice("Dropped privileges to %s (%d:%d)\n)", user, pw->pw_uid, pw->pw_gid);
     }
     /* Loop through scan results */
     ble_scan_loop(dd, filter_type);
