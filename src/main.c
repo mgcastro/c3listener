@@ -125,11 +125,7 @@ int main(int argc, char **argv) {
   
   log_init();
 
-#ifdef GIT_REVISION
-  log_notice("Starting ble-udp-bridge (%s)\n", GIT_REVISION);
-#else
-  log_notice("Starting ble-udp-bridge v%s\n", PACKAGE_VERSION);
-#endif
+  log_notice("Starting ble-udp-bridge %s\n", PACKAGE_VERSION);
   
   /* Parse config */
   config_init(&cfg);
