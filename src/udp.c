@@ -25,43 +25,48 @@ int udp_init(char *server_hostname, char *port) {
   hints.ai_flags = 0;
   hints.ai_protocol = 0;          /* Any protocol */
 
-  int s = getaddrinfo(server_hostname, port, &hints, &result);
-  if (s != 0) {
-    fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
-    return -1;
+  while(true) {
+    int s = getaddrinfo(server_hostname, port, &hints, &result);
+    if (s != 0) {
+      log_error("Server lookup failed: %s\n", gai_strerror(s));
+      sleep(5);
+    } else {
+      break;
+    }
   }
   
   /* getaddrinfo() returns a list of address structures.
      Try each address until we successfully connect(2).
      If socket(2) (or connect(2)) fails, we (close the socket
      and) try the next address. */
-
-  for (rp = result; rp != NULL; rp = rp->ai_next) {
-    void *p;
-    if (rp->ai_addr->sa_family == AF_INET)
-      p = &(((struct sockaddr_in*)rp->ai_addr)->sin_addr);
-    else
-      p = &(((struct sockaddr_in6*)rp->ai_addr)->sin6_addr);
-    char s[INET6_ADDRSTRLEN];
-    inet_ntop(rp->ai_family, p, s, sizeof s);
-    log_notice("Connecting to %s\n", s);
-    fd = socket(rp->ai_family, rp->ai_socktype,
-		 rp->ai_protocol);
-    fcntl(fd, F_SETFL, O_NONBLOCK);
-    if (fd == -1)
-      continue;
-    
-    if (connect(fd, rp->ai_addr, rp->ai_addrlen) != -1) {
-      break;                  /* Success */
+  bool conn_p = false;
+  while(!conn_p) {
+    /* Keep trying until we connect */
+    for (rp = result; rp != NULL; rp = rp->ai_next) {
+      void *p;
+      if (rp->ai_addr->sa_family == AF_INET)
+	p = &(((struct sockaddr_in*)rp->ai_addr)->sin_addr);
+      else
+	p = &(((struct sockaddr_in6*)rp->ai_addr)->sin6_addr);
+      char s[INET6_ADDRSTRLEN];
+      inet_ntop(rp->ai_family, p, s, sizeof s);
+      fd = socket(rp->ai_family, rp->ai_socktype,
+		  rp->ai_protocol);
+      fcntl(fd, F_SETFL, O_NONBLOCK);
+      if (fd == -1)
+	continue;
+      if (connect(fd, rp->ai_addr, rp->ai_addrlen) != -1) {
+	log_notice("Connected to %s\n", s);
+	conn_p = true;
+	break; /* Success */
+      } else {
+	log_warn("Failed to connect: %s\n", strerror(errno));
+	close(fd);
+	sleep(5);
+      }
     }
-    
-    close(fd);
   }
   
-  if (rp == NULL) {
-    fprintf(stderr, "Could not connect\n");
-    exit(EXIT_FAILURE);
-  }
   freeaddrinfo(result);           /* No longer needed */
   return fd;
 }

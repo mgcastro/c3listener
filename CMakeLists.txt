@@ -2,8 +2,10 @@ cmake_minimum_required(VERSION 2.6)
 project(ble-udp-bridge)
 option(DEBUG "Enable debug and disable optimization" OFF)
 
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
+
 if(DEBUG)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -Werror")
 else(DEBUG)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Os")
 endif(DEBUG)
