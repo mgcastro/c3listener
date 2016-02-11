@@ -1,7 +1,7 @@
 /* Hash table -
  *
  *   Shawn Nock 2015
- * 
+ *
  */
 
 #include <stdlib.h>
@@ -9,7 +9,7 @@
 #include "c3listener.h"
 #include "hash.h"
 
-static void* hashtable[HASH_TABLE_LENGTH] = { NULL };
+static void *hashtable[HASH_TABLE_LENGTH] = {NULL};
 
 static int hash_index(void *obj, index_cb index) {
   return index(obj) % HASH_TABLE_LENGTH;
@@ -22,19 +22,19 @@ void hash_delete(void *obj, index_cb index, equal_p equal) {
       /* Beacon is root of linked list */
       int idx = hash_index(obj, index);
       if (v->next != NULL) {
-	hashtable[idx] = v->next;
+        hashtable[idx] = v->next;
       } else {
-	v = hashtable[idx];
-	hashtable[idx] = NULL;
+        v = hashtable[idx];
+        hashtable[idx] = NULL;
       }
     } else {
       if (v->next != NULL) {
-	/* Beacon is middle of list */
+        /* Beacon is middle of list */
         v->prev->next = v->next;
-	v->next->prev = v->prev;
+        v->next->prev = v->prev;
       } else {
-	/* Beacon is end of LL */
-	v->prev->next = NULL;
+        /* Beacon is end of LL */
+        v->prev->next = NULL;
       }
     }
     /* Make sure v points to the removed node */
@@ -57,18 +57,18 @@ void *hash_add(void *obj, index_cb index, equal_p equal) {
      hash_delete is called */
   int idx = hash_index(obj, index);
   hashable_t *v = NULL, *v_last = NULL;
-  
+
   if ((v = hashtable[idx]) != NULL) {
     /* obj or collision exists */
     do {
       v_last = v;
       if (obj == v || equal(obj, v)) {
-	/* A match */
-	/* log_debug("Hit\n"); */
-	return v;
+        /* A match */
+        /* log_debug("Hit\n"); */
+        return v;
       } else {
-	/* Collision */
-	/* log_debug("Collision\n"); */
+        /* Collision */
+        /* log_debug("Collision\n"); */
       }
     } while ((v = v->next));
   }
@@ -97,18 +97,18 @@ void hash_walk(walker_cb *walker, void **args, size_t size) {
     while (v != NULL) {
       /* log_debug("Running walker on %p\n", v); */
       for (int j = 0; j < size; j++) {
-	v = walker[j](v, args[j]);
-	if (v == NULL) {
-	  break;
-	}
+        v = walker[j](v, args[j]);
+        if (v == NULL) {
+          break;
+        }
       }
       if (v == NULL) {
-	/* walker functions can NULL v, i.e. if the object is
-	   deleted. We cannot reason about any other chained nodes. */
-	continue;
+        /* walker functions can NULL v, i.e. if the object is
+           deleted. We cannot reason about any other chained nodes. */
+        continue;
       }
       v = v->next;
     }
     /* log_debug("Checking idx: %d\n", i); */
   }
-}  
+}

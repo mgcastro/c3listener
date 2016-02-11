@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "c3listener.h"
+#include "config.h"
 #include "beacon.h"
 #include "hash.h"
 #include "log.h"
@@ -22,10 +22,10 @@ int beacon_index(void *a) {
 bool beacon_eq(void *a, void *b) {
   beacon_t *aa = a, *bb = b;
   /* log_debug("%d == %d, %d == %d, UUID Result: %d\n", */
-  /* 	     aa->major, bb->major, aa->minor, bb->minor, !memcmp(aa->uuid, bb->uuid, 16)); */
-  return (aa->major == bb->major &&
-	  aa->minor == bb->minor &&
-	  !memcmp(aa->uuid, bb->uuid, 16));
+  /* 	     aa->major, bb->major, aa->minor, bb->minor, !memcmp(aa->uuid,
+   * bb->uuid, 16)); */
+  return (aa->major == bb->major && aa->minor == bb->minor &&
+          !memcmp(aa->uuid, bb->uuid, 16));
 }
 
 beacon_t *beacon_find_or_add(uint8_t *uuid, uint16_t major, uint16_t minor) {
@@ -53,7 +53,8 @@ beacon_t *beacon_find_or_add(uint8_t *uuid, uint16_t major, uint16_t minor) {
 void *beacon_expire(void *a, void *c) {
   beacon_t *b = a;
   double now_ts = *(double *)c;
-  /* log_debug("%f - %f = %f\n", b->kalman.last_seen, now_ts, b->kalman.last_seen - now_ts); */
+  /* log_debug("%f - %f = %f\n", b->kalman.last_seen, now_ts,
+   * b->kalman.last_seen - now_ts); */
   if (now_ts - b->kalman.last_seen > MAX_BEACON_INACTIVE_SEC) {
     log_debug("Beacon pruned\n");
     a = NULL; /* Alert the parent that we cannot dereference */
@@ -62,5 +63,3 @@ void *beacon_expire(void *a, void *c) {
   }
   return a;
 }
-
-

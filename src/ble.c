@@ -4,6 +4,7 @@
 #include <poll.h>
 #include <signal.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <sys/ioctl.h>
@@ -14,15 +15,16 @@
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 
+#include <event2/buffer.h>
+#include <event2/bufferevent.h>
+
 #include "beacon.h"
-#include "c3listener.h"
+#include "config.h"
 #include "hash.h"
 #include "kalman.h"
 #include "log.h"
 #include "report.h"
 #include "time_util.h"
-
-extern c3_config_t m_config;
 
 #ifdef HAVE_GETTEXT
 #include "gettext.h"
@@ -33,11 +35,11 @@ extern c3_config_t m_config;
 
 extern int dd;
 
-char *hexlify(const uint8_t* src, size_t n) {
-  char *buf = malloc(n*2+1);
-  memset(buf, 0, n*2+1);
-  for(int i = 0; i < n; i++) {
-    sprintf(buf+(i*2), "%.2x", src[i]);
+char *hexlify(const uint8_t *src, size_t n) {
+  char *buf = malloc(n * 2 + 1);
+  memset(buf, 0, n * 2 + 1);
+  for (int i = 0; i < n; i++) {
+    sprintf(buf + (i * 2), "%.2x", src[i]);
   }
   return buf;
 }
@@ -48,11 +50,12 @@ int ble_init(int dev_id) {
   uint8_t own_type = 0x00;
   uint8_t scan_type = 0x01;
   uint8_t filter_policy = 0x00;
-  uint16_t interval = htobs(0x00F0); 
-  uint16_t window = htobs(0x00F0); 
+  uint16_t interval = htobs(0x00F0);
+  uint16_t window = htobs(0x00F0);
 
   if (dev_id < 0) {
-    log_warn("Bluetooth interface invalid or not specified, trying first interface\n");
+    log_warn("Bluetooth interface invalid or not specified, trying first "
+             "interface\n");
     dev_id = hci_get_route(NULL);
   }
 
@@ -61,7 +64,7 @@ int ble_init(int dev_id) {
     log_error("Can't open HCI socket: %s", strerror(errno));
     exit(errno);
   }
-  
+
   if (ioctl(ctl, HCIDEVUP, dev_id) < 0) {
     if (errno != EALREADY) {
       log_error("Could not open bluetooth device", strerror(errno));
@@ -72,7 +75,7 @@ int ble_init(int dev_id) {
   } else {
     log_notice("Brought up interface hci%d", dev_id);
   }
-  
+
   if ((dd = hci_open_dev(dev_id)) < 0) {
     log_error(_("Could not open bluetooth device"), strerror(errno));
     exit(errno);
@@ -95,7 +98,8 @@ int ble_init(int dev_id) {
   socklen_t olen = sizeof(of);
   if (getsockopt(dd, SOL_HCI, HCI_FILTER, &of, &olen) < 0) {
     log_error(_("Could not get socket options"), strerror(errno));
-    raise(SIGTERM); /* Need to cleanup BLE explicitly once we start the scan */
+    raise(SIGTERM); /* Need to cleanup BLE explicitly once we start the scan
+                       */
     exit(errno);
   }
 
@@ -108,131 +112,214 @@ int ble_init(int dev_id) {
     raise(SIGTERM);
     exit(errno);
   }
-  fcntl(dd, F_SETFL, O_NONBLOCK);
   return dd;
 }
 
-void ble_scan_loop(int dd, uint8_t filter_type) {
-  /* Always happens in child; error route should be exit/abort. Parent
-     will cleanup privileged sockets */
-
-  unsigned char buf[HCI_MAX_EVENT_SIZE], *ptr;
-  int len;
-  double last_report = NAN, last_gc = NAN, last_report_attempt = NAN, last_ack = time_now();
-  /* double last_gc = NAN, last_packet = NAN; */
-  struct pollfd sockets[2];
-  int poll_ret;
-  sockets[0].fd = dd;
-  sockets[0].events = POLLIN;
-  sockets[1].fd = udp_init(m_config.server, m_config.port);
-  sockets[1].events = POLLIN;
-  
-  double ts = NAN;
-  char ack_buf[30] = {0};
-  while (1) {
+void ble_readcb(struct bufferevent *bev, void *ptr) {
     evt_le_meta_event *meta;
     le_advertising_info *info;
+  
+    char buf[HCI_MAX_EVENT_SIZE];
+    int n;
+    double ts = time_now();
 
-    /* Max interval for walker_cb callback = REPORT_INTERVAL_MSEC + REPORT_INTERVAL_MSEC / 4 */
-    poll_ret = poll(sockets, 2, m_config.report_interval);
-    ts = time_now();
-    if (poll_ret > 0) {
-      if (sockets[1].revents & POLLIN) {
-	/* We've received an ACK from the server */
-	read(sockets[1].fd, ack_buf, sizeof(ack_buf));
-	last_ack = ts;
-      }
-      if (sockets[0].revents & POLLIN) {
-	while ((len = read(sockets[0].fd, buf, sizeof(buf))) < 0) {
-	  if (errno == EINTR) {
-	    log_error(_("HCI Socket read interrupted"), strerror(errno));
-	    exit(errno);
-	  }
-      
-	  if (errno == EAGAIN || errno == EWOULDBLOCK)
-	    continue;
-	  log_error(_("Unknown HCI socket error"), strerror(errno));
-	  exit(errno);
-	}
-	ptr = buf + (1 + HCI_EVENT_HDR_SIZE);
-	
-	meta = (void *)ptr;
-	
-	if (meta->subevent != 0x02) {
-	  log_error(_("Failed to set HCI Socket Filter"));
-	  exit(errno);
-	}
-	
-	int num_reports;
-	num_reports = meta->data[0];
-	
-	for (int i = 0; i < num_reports; i++) {
-	  info = (le_advertising_info *)(meta->data + 1);
-	  if (memcmp(info->data, "\x02\x01\x04\x1a\xff", 5)
-	      || info->length < 30 || info->length > 31) {
-	    /* Skip non-ibeacon adverts */
-	    continue;
-	  }
-	  int rssi_offset = info->length + 10;
-	  int8_t rssi = meta->data[rssi_offset];
-	  int8_t rssi_cor = rssi + m_config.antenna_cor;
-	  uint8_t *uuid=info->data+9;
-	  int8_t tx_power = info->data[29];
-	  uint16_t major = info->data[25] << 8 | info->data[26];
-	  uint16_t minor = info->data[27] << 8 | info->data[28];
-	  beacon_t* b = beacon_find_or_add(uuid, major, minor);
-	  double dist = pow(10, (tx_power-kalman(b, rssi_cor, ts))/(10*m_config.path_loss));
-	  double raw_dist = pow(10, ((tx_power-rssi)/(10*m_config.path_loss)));
-	  b->distance = sqrt(pow(dist, 2)-pow(m_config.haab, 2));
-	  if (isnan(b->distance)) {
-	    b->distance = 0;
-	  }
-	  b->tx_power = (b->count * b->tx_power + tx_power)/(b->count + 1);
-	  b->count++;
-	  log_debug("maj/min: %d/%d, raw/flt: %f/%f, var: %f\n", major, minor, raw_dist, b->distance, b->kalman.P[0][0]);
-	}
-      }
+    struct evbuffer *input = bufferevent_get_input(bev);
+    while ((n = evbuffer_remove(input, buf, sizeof(buf))) > 0) {
+      meta = (void *)&buf[1 + HCI_EVENT_HDR_SIZE];
+       if (meta->subevent != 0x02) {
+          log_error(_("Failed to set HCI Socket Filter"));
+          exit(1);
+       }
+       
+       uint_fast8_t num_reports = meta->data[0];
+
+       for (uint_fast8_t i = 0; i < num_reports; i++) {
+	 info = (le_advertising_info *)(meta->data + 1);
+	 if (memcmp(info->data, "\x02\x01\x04\x1a\xff", 5) ||
+	     info->length < 30 || info->length > 31) {
+	   /* Skip non-ibeacon adverts */
+	   continue;
+	 }
+
+	 /* Parse data from HCI Event Report */
+	 uint_fast8_t rssi_offset = info->length + 10;
+	 int_fast8_t raw_rssi = meta->data[rssi_offset];
+	 uint8_t *uuid = info->data + 9;
+	 int8_t tx_power = info->data[29];
+	 uint16_t major = info->data[25] << 8 | info->data[26];
+	 uint16_t minor = info->data[27] << 8 | info->data[28];
+
+	 /* Lookup beacon */
+	 beacon_t *b = beacon_find_or_add(uuid, major, minor);
+	 
+	 /* Derive / Correct Values */ 
+	 int8_t cor_rssi = raw_rssi + config_get_antenna_correction();
+	 double flt_rssi = kalman(b, cor_rssi, ts);
+	 double raw_dist =
+	   pow(10,
+	       ((tx_power - cor_rssi) / (10 * config_get_path_loss())));
+	 
+	 /* Filter Distance Data */
+	 double flt_dist = pow(10,
+			   (tx_power - flt_rssi) /
+			   (10 * config_get_path_loss()));
+
+	 /* Correct for HAAB truncating data below 0m */
+	 b->distance = sqrt(pow(flt_dist, 2) - pow(config_get_haab(), 2));
+	 if (isnan(b->distance)) {
+	   b->distance = 0;
+	 }
+	 
+	 b->tx_power = (b->count * b->tx_power + tx_power) / (b->count + 1);
+	 b->count++;
+
+	 /* Convert variance to meters from RSSI units linearize near
+	    current estimate */
+	 double stddev = sqrt(b->kalman.P[0][0]); /* Std. dev in RSSI units */
+	 
+	 double min_dist = pow(10,
+			       (tx_power - (flt_rssi - stddev)) /
+			   (10 * config_get_path_loss()));
+	 double max_dist = pow(10,
+			       (tx_power - (flt_rssi + stddev)) /
+			   (10 * config_get_path_loss()));
+	 double variance = (pow(max_dist - flt_dist, 2) + pow(min_dist - flt_dist, 2)) / 2;
+	 log_debug("\
+min: %d, raw/ant_corr/flt/tx_power: %d/%d/%.2f/%d, raw/flt/haab: %.2f/%.2f/%.2f, var: %.2f, error: %.2fm\n",
+		   minor,
+		   raw_rssi, cor_rssi, flt_rssi, b->tx_power,
+		   raw_dist, flt_dist, b->distance,
+		   variance, sqrt(variance));
+       }
     }
-    int cb_idx = 0;
-    walker_cb func[MAX_HASH_CB] = {NULL};
-    void *args[MAX_HASH_CB] = {NULL};
-    
-    if (isnan(last_report_attempt) ||
-	ts - last_report_attempt > m_config.report_interval / 1000.0) {
-      report_clear();
-      report_header(REPORT_VERSION_0, REPORT_PACKET_TYPE_DATA);
-      func[cb_idx] = report_beacon;
-      args[cb_idx++] = NULL;
-    }
-    if (isnan(last_gc) ||
-	ts - last_gc > GC_INTERVAL_SEC) {
-      func[cb_idx] = beacon_expire;
-      args[cb_idx++] = &ts;
-      last_gc = ts;
-    }
-    hash_walk(func, args, cb_idx);
-    if (ts - last_ack > MAX_ACK_INTERVAL_SEC) {
-      log_warn("Server hasn't acknowleged in %d seconds. Reconnecting.\n", MAX_ACK_INTERVAL_SEC);
-      close(sockets[1].fd);
-      sockets[1].fd = udp_init(m_config.server, m_config.port);
-      last_ack = ts;
-    }
-    /* If we generated a report this walk, send it */ 
-    for (int i = 0; i < MAX_HASH_CB; i++) {
-      if (func[i] == report_beacon) {
-	if (report_length() > report_header_length()) {
-	  report_send();
-	  last_report = ts;
-	}
-	last_report_attempt = ts;
-	break;
-      }
-    }
-    if (isnan(last_report) || ts - last_report > KEEP_ALIVE_SEC ) {
-      report_header(REPORT_VERSION_0, REPORT_PACKET_TYPE_KEEPALIVE);
-      report_send();
-      log_debug("Keep alive sent\n");
-      last_report = ts;
-    }
-  }
 }
+
+/* void ble_scan_loop(int dd, uint8_t filter_type) { */
+/*   /\* Always happens in child; error route should be exit/abort. Parent */
+/*      will cleanup privileged sockets *\/ */
+
+/*   unsigned char buf[HCI_MAX_EVENT_SIZE], *ptr; */
+/*   int len; */
+/*   double last_report = NAN, last_gc = NAN, last_report_attempt = NAN, */
+/*          last_ack = time_now(); */
+/*   /\* double last_gc = NAN, last_packet = NAN; *\/ */
+/*   struct pollfd sockets[2]; */
+/*   int poll_ret; */
+/*   sockets[0].fd = dd; */
+/*   sockets[0].events = POLLIN; */
+/*   /\* sockets[1].fd = udp_init(m_config.server, m_config.port); *\/ */
+/*   /\* sockets[1].events = POLLIN; *\/ */
+
+/*   double ts = NAN; */
+/*   char ack_buf[30] = {0}; */
+/*   while (1) { */
+/*     evt_le_meta_event *meta; */
+/*     le_advertising_info *info; */
+
+/*     /\* Max interval for walker_cb callback = REPORT_INTERVAL_MSEC + */
+/*      * REPORT_INTERVAL_MSEC / 4 *\/ */
+/*     poll_ret = poll(sockets, 2, config_get_report_interval()); */
+/*     ts = time_now(); */
+/*     if (poll_ret > 0) { */
+/*       if (sockets[1].revents & POLLIN) { */
+/*         /\* We've received an ACK from the server *\/ */
+/*         read(sockets[1].fd, ack_buf, sizeof(ack_buf)); */
+/*         last_ack = ts; */
+/*       } */
+/*       if (sockets[0].revents & POLLIN) { */
+/*         while ((len = read(sockets[0].fd, buf, sizeof(buf))) < 0) { */
+/*           if (errno == EINTR) { */
+/*             log_error(_("HCI Socket read interrupted"), strerror(errno)); */
+/*             exit(errno); */
+/*           } */
+
+/*           if (errno == EAGAIN || errno == EWOULDBLOCK) */
+/*             continue; */
+/*           log_error(_("Unknown HCI socket error"), strerror(errno)); */
+/*           exit(errno); */
+/*         } */
+/*         ptr = buf + (1 + HCI_EVENT_HDR_SIZE); */
+
+/*         meta = (void *)ptr; */
+
+/*         if (meta->subevent != 0x02) { */
+/*           log_error(_("Failed to set HCI Socket Filter")); */
+/*           exit(errno); */
+/*         } */
+
+/*         int num_reports; */
+/*         num_reports = meta->data[0]; */
+
+/*         for (int i = 0; i < num_reports; i++) { */
+/*           info = (le_advertising_info *)(meta->data + 1); */
+/*           if (memcmp(info->data, "\x02\x01\x04\x1a\xff", 5) || */
+/*               info->length < 30 || info->length > 31) { */
+/*             /\* Skip non-ibeacon adverts *\/ */
+/*             continue; */
+/*           } */
+/*           int rssi_offset = info->length + 10; */
+/*           int8_t rssi = meta->data[rssi_offset]; */
+/*           int8_t rssi_cor = rssi + config_get_antenna_correction(); */
+/*           uint8_t *uuid = info->data + 9; */
+/*           int8_t tx_power = info->data[29]; */
+/*           uint16_t major = info->data[25] << 8 | info->data[26]; */
+/*           uint16_t minor = info->data[27] << 8 | info->data[28]; */
+/*           beacon_t *b = beacon_find_or_add(uuid, major, minor); */
+/*           double dist = pow(10, (tx_power - kalman(b, rssi_cor, ts)) / */
+/*                                     (10 * config_get_path_loss())); */
+/*           double raw_dist = */
+/*               pow(10, ((tx_power - rssi) / (10 * config_get_path_loss()))); */
+/*           b->distance = sqrt(pow(dist, 2) - pow(config_get_haab(), 2)); */
+/*           if (isnan(b->distance)) { */
+/*             b->distance = 0; */
+/*           } */
+/*           b->tx_power = (b->count * b->tx_power + tx_power) / (b->count + 1); */
+/*           b->count++; */
+/*           log_debug("maj/min: %d/%d, raw/flt: %f/%f, var: %f\n", major, minor, */
+/*                     raw_dist, b->distance, b->kalman.P[0][0]); */
+/*         } */
+/*       } */
+/*     } */
+/*     int cb_idx = 0; */
+/*     walker_cb func[MAX_HASH_CB] = {NULL}; */
+/*     void *args[MAX_HASH_CB] = {NULL}; */
+
+/*     if (isnan(last_report_attempt) || */
+/*         ts - last_report_attempt > config_get_report_interval() / 1000.0) { */
+/*       report_clear(); */
+/*       report_header(REPORT_VERSION_0, REPORT_PACKET_TYPE_DATA); */
+/*       func[cb_idx] = report_beacon; */
+/*       args[cb_idx++] = NULL; */
+/*     } */
+/*     if (isnan(last_gc) || ts - last_gc > GC_INTERVAL_SEC) { */
+/*       func[cb_idx] = beacon_expire; */
+/*       args[cb_idx++] = &ts; */
+/*       last_gc = ts; */
+/*     } */
+/*     hash_walk(func, args, cb_idx); */
+/*     if (ts - last_ack > MAX_ACK_INTERVAL_SEC) { */
+/*       log_warn("Server hasn't acknowleged in %d seconds. Reconnecting.\n", */
+/*                MAX_ACK_INTERVAL_SEC); */
+/*       close(sockets[1].fd); */
+/*       // sockets[1].fd = udp_init(m_config.server, m_config.port); */
+/*       last_ack = ts; */
+/*     } */
+/*     /\* If we generated a report this walk, send it *\/ */
+/*     for (int i = 0; i < MAX_HASH_CB; i++) { */
+/*       if (func[i] == report_beacon) { */
+/*         if (report_length() > report_header_length()) { */
+/*           report_send(); */
+/*           last_report = ts; */
+/*         } */
+/*         last_report_attempt = ts; */
+/*         break; */
+/*       } */
+/*     } */
+/*     if (isnan(last_report) || ts - last_report > KEEP_ALIVE_SEC) { */
+/*       report_header(REPORT_VERSION_0, REPORT_PACKET_TYPE_KEEPALIVE); */
+/*       report_send(); */
+/*       log_debug("Keep alive sent\n"); */
+/*       last_report = ts; */
+/*     } */
+/*   } */
+/* } */
