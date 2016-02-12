@@ -6,8 +6,8 @@
 
 #include "hash.h"
 
-//#define Q_SPECTRAL_DENSITY 0.1225 /* variance of process noise */
-#define Q_SPECTRAL_DENSITY 0.01 /* variance of process noise */
+#define Q_SPECTRAL_DENSITY 0.1225 /* variance of process noise */
+//#define Q_SPECTRAL_DENSITY 0.005 /* variance of process noise */
 #define MEASUREMENT_VARIANCE 9
 
 #define HASH_TABLE_LEN_PRIME 251
@@ -31,5 +31,5 @@ typedef struct generic_hashable_filterable {
 } hashable_filterable_t;
 
 double kalman(void *, int8_t, double);
-  
+
 #endif
