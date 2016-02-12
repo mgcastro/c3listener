@@ -14,7 +14,12 @@ static config_t cfg;
 
 /* Structure holding local c3listener config */
 static c3_cli_config_t cli_cfg = {
-    .hci_dev_id = -1, .debug = false, .config_file = NULL, .user = NULL};
+    .hci_dev_id = -1,
+    .debug = false,
+    .config_file = NULL,
+    .user = NULL,
+    .webroot = NULL
+};
 
 static void config_do_cli(int argc, char **argv) {
   int c;
@@ -27,11 +32,13 @@ static void config_do_cli(int argc, char **argv) {
         {"config", required_argument, 0, 'c'},
         {"user", required_argument, 0, 'u'},
         {"interface", required_argument, 0, 'i'},
-        {0, 0, 0, 0}};
+	{"webroot", required_argument, 0, 'w'},
+        {0, 0, 0, 0}
+    };
     /* getopt_long stores the option index here. */
     int option_index = 0;
 
-    c = getopt_long(argc, argv, "dc:u:i:", long_options, &option_index);
+    c = getopt_long(argc, argv, "dc:u:i:w:", long_options, &option_index);
 
     /* Detect the end of the options. */
     if (c == -1)
@@ -47,8 +54,11 @@ static void config_do_cli(int argc, char **argv) {
       break;
     case 'u':
       cli_cfg.user = calloc(strlen(optarg) + 1, 1);
-      memset(cli_cfg.user, 0, strlen(optarg) + 1);
       memcpy(cli_cfg.user, optarg, strlen(optarg) + 1);
+      break;
+    case 'w':
+      cli_cfg.webroot = calloc(strlen(optarg) + 1, 1);
+      memcpy(cli_cfg.webroot, optarg, strlen(optarg));
       break;
     case '?':
       /* getopt_long already printed an error message. */
@@ -167,6 +177,19 @@ const char *config_get_user(void) {
       return buf;
     } else {
       return DEFAULT_USER;
+    }
+  }
+}
+
+const char *config_get_webroot(void) {
+  if (cli_cfg.webroot != NULL) {
+    return cli_cfg.webroot;
+  } else {
+    const char *buf;
+    if (config_lookup_string(&cfg, "webroot", &buf)) {
+      return buf;
+    } else {
+      return DEFAULT_WEBROOT;
     }
   }
 }

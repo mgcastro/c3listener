@@ -43,10 +43,11 @@ void report_cb(int a, short b, void *self) {
   /* If we generated a report this walk, send it */
   if (report_length() > report_header_length()) {
     report_send();
+    log_debug("Report sent.\n");
   } else {
     report_header(REPORT_VERSION_0, REPORT_PACKET_TYPE_KEEPALIVE);
     report_send();
-    log_debug("Keep alive sent\n");
+    log_debug("Keep alive sent.\n");
   }
 }
 

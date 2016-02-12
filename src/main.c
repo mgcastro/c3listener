@@ -20,14 +20,16 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+#include "beacon.h"
 #include "ble.h"
 #include "config.h"
-#include "beacon.h"
+#include "http.h"
 #include "log.h"
 #include "report.h"
 #include "udp.h"
 
 #include <event2/event.h>
+#include <event2/http.h>
 static void log_cb(int severity, const char *msg) {
   syslog(severity, msg);
   return;
@@ -132,6 +134,13 @@ void do_child(void) {
 
   base = event_base_new();
 
+  /* Setup Web Server */
+  struct evhttp *http = evhttp_new(base);
+  evhttp_bind_socket(http, "*", 8888);
+  evhttp_set_gencb(http,
+		   http_main_cb,
+		   (void *)config_get_webroot()); 	
+  
   /* Setup a bufferevent to process BLE scan results */
   struct bufferevent *ble_bev = bufferevent_socket_new(base, dd, 0);
   bufferevent_setcb(ble_bev, ble_readcb, NULL, NULL, NULL);

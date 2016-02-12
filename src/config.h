@@ -33,14 +33,16 @@
 #define DEFAULT_HCI_INTERFACE 0.0
 #define DEFAULT_HAAB 0.0
 #define DEFAULT_ANTENNA_CORRECTION 0
-#define DEFAULT_REPORT_INTERVAL_MSEC 500
+#define DEFAULT_REPORT_INTERVAL_MSEC 5000
 #define DEFAULT_USER "nobody"
+#define DEFAULT_WEBROOT "./web"
 
 typedef struct cli_conf {
   int_fast8_t hci_dev_id;
   bool debug;
   char *config_file;
   char *user;
+  char *webroot;
 } c3_cli_config_t;
 
 void config_cleanup(void);
@@ -54,3 +56,4 @@ const char *config_get_remote_hostname(void);
 bool config_debug(void);
 int config_get_hci_interface(void);
 void config_start(int argc, char **argv);
+const char *config_get_webroot(void);
