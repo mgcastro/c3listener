@@ -17,7 +17,6 @@ magic_t magic = NULL;
 
 #include "log.h"
 
-#ifndef HAVE_LIBMAGIC
 struct mime_type {
   const char *ext;
   const char *mime;
@@ -25,6 +24,7 @@ struct mime_type {
   {"html", "text/html"},
   {"css", "text/css"},
   {"js", "application/javascript"},
+  {"json", "application/json"},
   {"jpg", "image/jpeg" },
   {"jpeg", "image/jpeg" },
   {"png", "image/png" },
@@ -41,9 +41,16 @@ static const char *mime_guess(const char *fname) {
 	return entry->mime;
     }
   }
+#ifdef HAVE_LIBMAGIC
+  if (!magic) {
+    magic = magic_open(MAGIC_MIME);
+    magic_load(magic, NULL);
+  }
+  return  magic_file(magic, fname);
+#else
   return "application/octet-stream";
-}
 #endif /* HAVE_LIBMAGIC */
+}
 
 static void http_post_cb(struct evhttp_request *req, void *arg) {
 }
@@ -65,7 +72,6 @@ void http_main_cb(struct evhttp_request *req, void *arg) {
   const char *uri = evhttp_request_get_uri(req);
   log_notice("Got a GET request for <%s>\n",  uri);
 
-  /* Check if file exists || send 404 */
   struct evhttp_uri *decoded = NULL;
   decoded = evhttp_uri_parse(uri);
   if (!decoded) {
@@ -83,6 +89,11 @@ void http_main_cb(struct evhttp_request *req, void *arg) {
   char *decoded_path = evhttp_uridecode(path, 0, NULL);
   if (decoded_path == NULL)
     goto err;
+  if (!strncmp(decoded_path, "/", 2)) {
+    log_notice("poop\n");
+    decoded_path = realloc(decoded_path, strlen("/index.html"));
+    strcpy(decoded_path, "/index.html");
+  }
   
   size_t len = strlen(decoded_path)+strlen(docroot)+2;
   if (!(whole_path = malloc(len))) {
@@ -101,15 +112,7 @@ void http_main_cb(struct evhttp_request *req, void *arg) {
 
   /* Get Mime type / set header */
   const char *type;
-#ifdef HAVE_LIBMAGIC
-  if (!magic) {
-    magic = magic_open(MAGIC_MIME);
-    magic_load(magic, NULL);
-  }
-  type = magic_file(magic, whole_path);
-#else
   type = mime_guess(decoded_path);
-#endif /* HAVE_LIBMAGIC */
   evhttp_add_header(evhttp_request_get_output_headers(req),
 		    "Content-Type", type);
   
