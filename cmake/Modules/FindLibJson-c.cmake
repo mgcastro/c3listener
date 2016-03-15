@@ -1,0 +1,20 @@
+find_path(JSONC_INCLUDE_DIR NAMES json-c/json.h)
+find_library(JSONC_LIBRARY NAMES json-c)
+
+if (JSONC_INCLUDE_DIR AND JSONC_LIBRARY)
+    SET(JSONC_FOUND TRUE)
+endif (JSONC_INCLUDE_DIR AND JSONC_LIBRARY)
+
+if (JSONC_FOUND)
+   message(STATUS "Found json-c: ${JSONC_LIBRARY}")
+else(JSONC_FOUND)
+    if(JSONC_FIND_REQUIRED)
+	if(not JSONC_INCLUDE_DIR)
+	    message(FATAL_ERROR "Could not find LibJson-c header file!")
+	ENDIF(NOT CONFIG_INCLUDE_DIR)
+
+	if(not JSONC_LIBRARY)
+	    message(FATAL_ERROR "Could not find LibJson-c library file!")
+	endif(not JSONC_LIBRARY)
+    endif(JSONC_FIND_REQUIRED)
+endif(JSONC_FOUND)

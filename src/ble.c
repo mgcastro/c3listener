@@ -155,9 +155,6 @@ void ble_readcb(struct bufferevent *bev, void *ptr) {
 	 /* Derive / Correct Values */ 
 	 int8_t cor_rssi = raw_rssi + config_get_antenna_correction();
 	 double flt_rssi = kalman(b, cor_rssi, ts);
-	 double raw_dist =
-	   pow(10,
-	       ((tx_power - cor_rssi) / (10 * config_get_path_loss())));
 	 
 	 /* Filter Distance Data */
 	 double flt_dist = pow(10,
@@ -183,13 +180,16 @@ void ble_readcb(struct bufferevent *bev, void *ptr) {
 	 double max_dist = pow(10,
 			       (tx_power - (flt_rssi + stddev)) /
 			   (10 * config_get_path_loss()));
-	 double variance = (pow(max_dist - flt_dist, 2) + pow(min_dist - flt_dist, 2)) / 2;
-	 log_debug("\
-min: %d, raw/ant_corr/flt/tx_power: %d/%d/%.2f/%d, raw/flt/haab: %.2f/%.2f/%.2f, var: %.2f, error: %.2fm\n",
-		   minor,
-		   raw_rssi, cor_rssi, flt_rssi, b->tx_power,
-		   raw_dist, flt_dist, b->distance,
-		   variance, sqrt(variance));
+	 b->variance = (pow(max_dist - flt_dist, 2) + pow(min_dist - flt_dist, 2)) / 2;
+	 /* double raw_dist = */
+	 /*   pow(10, */
+	 /*       ((tx_power - cor_rssi) / (10 * config_get_path_loss()))); */
+	 /* log_debug("\ */
+/* min: %d, raw/ant_corr/flt/tx_power: %d/%d/%.2f/%d, raw/flt/haab: %.2f/%.2f/%.2f, var: %.2f, error: %.2fm\n", */
+/* 		   minor, */
+/* 		   raw_rssi, cor_rssi, flt_rssi, b->tx_power, */
+/* 		   raw_dist, flt_dist, b->distance, */
+/* 		   b->variance, sqrt(b->variance)); */
        }
     }
 }

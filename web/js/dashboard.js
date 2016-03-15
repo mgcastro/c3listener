@@ -7,20 +7,40 @@ define(['ajax'], function(ajax) {
 	for (var i = 0, l = beacons.length; i < l; i++) {
 	    var beacon = beacons[i];
 	    var row = document.createElement('tr');
-	    row.innerHTML += "<td>"+beacon.major+"/"+beacon.minor+"</td>";
-            row.innerHTML += "<td>"+beacon.distance+"</td>";
-	    row.innerHTML += "<td>"+beacon.error+"</td>";
+	    row.innerHTML += "<td>"+beacon.major+" / "+beacon.minor+"</td>";
+            row.innerHTML += "<td>"+Math.round(beacon.distance*100)/100+"m</td>";
+	    row.innerHTML += "<td>"+Math.round(Math.sqrt(beacon.error)*100)/100+"m</td>";
 	    new_tbody.appendChild(row);
 	}
 	table.replaceChild(new_tbody, old_tbody);
-	window.setTimeout(fetch_beacons, 1000);
+	window.setTimeout(fetch_beacons, 2500);
     }
     function fetch_beacons() {
 	ajax.get('beacons.json').then(update_beacon_table, function (resp) {
 	    console.log("Failed to get recent beacons:", resp);
-	    window.setTimeout(fetch_beacons, 1000);
+	    window.setTimeout(fetch_beacons, 5000);
 	});
     }
+    
+    function pretty_print_uci_key (key) {
+	var map = {
+	    "ifname": "Interface",
+	    "proto": "IP Type",
+	    "ipaddr": "IP Address",
+	    "netmask": "Netmask",
+	    "gateway": "Gateway",
+	    "dns": "DNS Servers",
+	    "device": "Device",
+	    "network": "Network",
+	    "mode": "Mode",
+	    "ssid": "SSID",
+	    "encryption": "Encryption"};
+	if (map.hasOwnProperty(key)) {
+	    return map[key];
+	}
+	return key;
+    }
+    
     function populate_netstatus () {
 	ajax.get('net_status.json').then(
 	    function (net) {
@@ -30,7 +50,7 @@ define(['ajax'], function(ajax) {
 			dl.innerHTML = "";
 			for (var prop in net[type]) {
 			    if (net[type].hasOwnProperty(prop)){
-				dl.innerHTML += "<dt>"+prop+"</dt>";
+				dl.innerHTML += "<dt>"+pretty_print_uci_key(prop)+"</dt>";
 				dl.innerHTML += "<dd>"+net[type][prop]+"</dd>";
 			    }
 			}

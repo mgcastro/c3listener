@@ -66,6 +66,15 @@ int main(int argc, char **argv) {
     }
   }
 
+  base = event_base_new();
+
+  /* Setup Web Server, pre-fork to get low port */
+  struct evhttp *http = evhttp_new(base);
+  evhttp_bind_socket(http, "*", 80);
+  evhttp_set_gencb(http,
+		   http_main_cb,
+		   (void *)config_get_webroot()); 
+  
   child_pid = fork();
   if (child_pid < 0) {
     log_error("Failed to spawn child", strerror(errno));
@@ -75,6 +84,8 @@ int main(int argc, char **argv) {
   if (child_pid > 0) {
     do_parent();
   } else {
+    /* We need to reinit the event_base in the child process */
+    event_reinit(base);
     do_child();
   }
   return errno;
@@ -132,15 +143,6 @@ void do_child(void) {
   log_notice("Dropped privileges to %s (%d:%d)\n)", user, pw->pw_uid,
              pw->pw_gid);
 
-  base = event_base_new();
-
-  /* Setup Web Server */
-  struct evhttp *http = evhttp_new(base);
-  evhttp_bind_socket(http, "*", 8888);
-  evhttp_set_gencb(http,
-		   http_main_cb,
-		   (void *)config_get_webroot()); 	
-  
   /* Setup a bufferevent to process BLE scan results */
   struct bufferevent *ble_bev = bufferevent_socket_new(base, dd, 0);
   bufferevent_setcb(ble_bev, ble_readcb, NULL, NULL, NULL);

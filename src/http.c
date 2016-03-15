@@ -5,10 +5,21 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include <event2/buffer.h>
 #include <event2/http.h>
 #include <event2/util.h>
+#include <evhttp.h>
+
+#include <json-c/json.h>
+
+#include <uci.h>
+
+#include "beacon.h"
+#include "config.h"
+#include "time_util.h"
+#include "uci_json.h"
 
 #ifdef HAVE_LIBMAGIC
 #include <magic.h>
@@ -16,6 +27,7 @@ magic_t magic = NULL;
 #endif /* HAVE_LIBMAGIC */
 
 #include "log.h"
+#include "config.h"
 
 struct mime_type {
   const char *ext;
@@ -28,6 +40,95 @@ struct mime_type {
   {"jpg", "image/jpeg" },
   {"jpeg", "image/jpeg" },
   {"png", "image/png" },
+  {NULL, NULL},
+};
+
+typedef void(*url_cb)(struct evhttp_request *, void *);
+
+extern char hostname[HOSTNAME_MAX_LEN + 1];
+
+static void server_json(struct evhttp_request *req, void *arg) {
+  json_object * jobj = json_object_new_object();
+  json_object_object_add(jobj, "listener_id",
+			 json_object_new_string(hostname));
+  json_object_object_add(jobj, "last_seen",
+			 json_object_new_string("Not implemented"));
+  json_object_object_add(jobj, "host",
+			 json_object_new_string(config_get_remote_hostname()));
+  json_object_object_add(jobj, "port",
+			 json_object_new_string(config_get_remote_port()));
+  json_object_object_add(jobj, "interval",
+			 json_object_new_int(tv2ms(config_get_report_interval())));
+  json_object_object_add(jobj, "path_loss",
+			 json_object_new_double(config_get_path_loss()));
+  json_object_object_add(jobj, "haab",
+			 json_object_new_double(config_get_haab()));
+  
+  struct evbuffer *buf = evhttp_request_get_output_buffer(req);
+  const char *json = json_object_to_json_string(jobj);
+  evbuffer_add(buf, json, strlen(json));
+  evhttp_add_header(evhttp_request_get_output_headers(req),
+		    "Content-Type", "application/json");
+  evhttp_send_reply(req, 200, "OK", buf);
+  json_object_put(jobj);
+}
+
+static void network_json(struct evhttp_request *req, void *arg) {
+  json_object *jobj = json_object_new_object();
+
+  json_object_object_add(jobj, "wired",
+			 uci_section_jobj("network.lan2"));
+  json_object_object_add(jobj, "wireless",
+			 uci_section_jobj("wireless.@wifi-iface[0]"));
+  
+  struct evbuffer *buf = evhttp_request_get_output_buffer(req);
+  const char *json = json_object_to_json_string(jobj);
+  evbuffer_add(buf, json, strlen(json));
+  evhttp_add_header(evhttp_request_get_output_headers(req),
+		    "Content-Type", "application/json");
+  evhttp_send_reply(req, 200, "OK", buf);
+  json_object_put(jobj);
+}
+
+static void *beacon_hash_walker(void *ptr, void *jobj) {
+  beacon_t *b = ptr;
+  
+  json_object *b_jobj = json_object_new_object();
+  json_object_object_add(b_jobj, "major",
+			 json_object_new_int(b->major));
+  json_object_object_add(b_jobj, "minor",
+			 json_object_new_int(b->minor));
+  json_object_object_add(b_jobj, "distance",
+			 json_object_new_double(b->distance));
+  json_object_object_add(b_jobj, "error",
+			 json_object_new_double(b->kalman.P[0][0]));
+  json_object_array_add(jobj, b_jobj);
+  return ptr;
+}
+
+static void beacon_json(struct evhttp_request *req, void *arg) {
+  json_object *b_array = json_object_new_array();
+
+  walker_cb cb_list[1] = {beacon_hash_walker};
+  void *arg_list[1] = {b_array};
+  hash_walk(cb_list, arg_list, 1);
+  
+  struct evbuffer *buf = evhttp_request_get_output_buffer(req);
+  const char *json = json_object_to_json_string(b_array);
+  evbuffer_add(buf, json, strlen(json));
+  evhttp_add_header(evhttp_request_get_output_headers(req),
+		    "Content-Type", "application/json");
+  evhttp_send_reply(req, 200, "OK", buf);
+  json_object_put(b_array);
+}
+
+struct url_map_s {
+  const char *path;
+  url_cb handler;
+} url_map[] = {
+  {"/json/server.json", server_json},
+  {"/json/net_status.json", network_json},
+  {"/json/beacons.json", beacon_json},
   {NULL, NULL},
 };
 
@@ -53,6 +154,52 @@ static const char *mime_guess(const char *fname) {
 }
 
 static void http_post_cb(struct evhttp_request *req, void *arg) {
+  const char *uri = evhttp_request_get_uri(req);
+  log_notice("Got a POST request for <%s>\n",  uri);
+
+  struct evhttp_uri *decoded = NULL;
+  decoded = evhttp_uri_parse(uri);
+  if (!decoded) {
+    evhttp_send_error(req, HTTP_BADREQUEST, 0);
+    return;
+  }
+  
+  const char *path;
+  path = evhttp_uri_get_path(decoded);
+  if (!path) {
+    path = "/";
+  }
+
+  char *decoded_path = evhttp_uridecode(path, 0, NULL);
+  if (decoded_path == NULL)
+    goto err;
+
+  /* Set header */
+  evhttp_add_header(evhttp_request_get_output_headers(req),
+		    "Content-Type", "application/json");
+  
+  struct evbuffer *buf = evhttp_request_get_output_buffer(req);
+  //evbuffer_add_file(buf, fd, 0, st.st_size);
+
+  char cbuf[128] = {0};
+  while (evbuffer_get_length(req->input_buffer)) {
+    int n = evbuffer_remove(req->input_buffer, cbuf, sizeof(cbuf)-1);
+    log_notice("POST > Got %d bytes\n", n);
+    log_notice("POST >>> %s\n", cbuf);
+  }
+  /* struct evkeyvalq * params; */
+  /* evhttp_parse_query_str(cbuf, params); */
+  evhttp_send_reply(req, 200, "OK", buf);
+  goto done;
+  
+ err:
+  evhttp_send_error(req, 404, "Document was not found");
+  
+ done:
+  if (decoded)
+    evhttp_uri_free(decoded);
+  if (decoded_path)
+    free(decoded_path);
 }
 
 void http_main_cb(struct evhttp_request *req, void *arg) {
@@ -85,6 +232,13 @@ void http_main_cb(struct evhttp_request *req, void *arg) {
     path = "/";
   }
 
+  /* Check for a custom handler for this path, call the handler on
+     match */
+  for(struct url_map_s *url_map_entry = url_map; url_map_entry->path; url_map_entry++) {
+      if (!evutil_ascii_strcasecmp(url_map_entry->path, path))
+	return url_map_entry->handler(req, arg);
+  }
+  
   char *whole_path = NULL;
   char *decoded_path = evhttp_uridecode(path, 0, NULL);
   if (decoded_path == NULL)
@@ -101,12 +255,13 @@ void http_main_cb(struct evhttp_request *req, void *arg) {
     goto err;
   }
   evutil_snprintf(whole_path, len, "%s/%s", docroot, decoded_path);
-
   struct stat st;
   if (stat(whole_path, &st)<0) {
+    log_notice("Cannot find %s\n");
     goto err;
   }
   if (S_ISDIR(st.st_mode)) {
+    log_notice("%s is a directory\n");
     goto err;
   }
 

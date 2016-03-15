@@ -22,7 +22,9 @@
             <span class="icon-bar"></span>
             <span class="icon-bar"></span>
           </button>
-          <a class="navbar-brand" href="#"><img src="img/logo.png"></a>
+          <a class="navbar-brand"
+             href="#"><img src="img/logo.png"></a>
+	  <span id="unit-id"><span>
         </div>
         <div id="navbar" class="navbar-collapse collapse">
           <ul class="nav navbar-nav navbar-right">
@@ -46,14 +48,14 @@
 	  <form >
 	    <div class="form-group">
 	      <label for="haab">Listener Height</label>
-	      <input type="number" step="0.5" class="form-control" id="haab">
+	      <input name="haab" type="number" step="0.5" class="form-control" id="haab">
 	      <p class="help-block">
 		Height of the listener above / or below the average expected beacon height in meters.
 	      </p>
 	    </div>
 	    <div class="form-group">
 	      <label for="path_loss">Path Loss</label>
-	      <input type="number" step="0.1" class="form-control" id="path_loss" min="2.0" max="4.0">
+	      <input name="path_loss" type="number" step="0.1" class="form-control" id="path_loss" min="2.0" max="4.0">
 	      <p class="help-block">
 		Environment specific path loss exponent. Typical values: Outdoors 2.0; Indoors 3.2.
 	      </p>

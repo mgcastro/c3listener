@@ -1,0 +1,13 @@
+{"wired": {
+    "Type": "DHCP",
+    "IP Address": "",
+    "Gateway": "",
+    "DNS": ""
+	  },
+ "wireless": {
+     "SSID": "C3Wireless",
+     "IP Address": "192.168.25.15",
+     "Gateway": "192.168.15.1",
+     "DNS": "8.8.8.8,8.8.4.4"
+ }
+}
