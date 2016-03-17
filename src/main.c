@@ -27,6 +27,9 @@
 #include "log.h"
 #include "report.h"
 #include "udp.h"
+#include "ipc.h"
+
+#define EVLOOP_NO_EXIT_ON_EMPTY 0x04
 
 #include <event2/event.h>
 #include <event2/http.h>
@@ -39,6 +42,11 @@ static void log_cb(int severity, const char *msg) {
 int dd = 0, child_pid = 0;
 const uint8_t filter_type = 0, filter_dup = 0;
 struct event_base *base;
+
+/* Sockets linking parent and child for IPC */
+int ipc_sock_pair[2];
+struct bufferevent *ipc_bev = {0};
+
 
 void sigint_handler(int);
 void do_parent(void);
@@ -55,9 +63,6 @@ int main(int argc, char **argv) {
   log_notice("Starting c3listener %s\n", PACKAGE_VERSION);
   fflush(stdout);
 
-  dd = ble_init(config_get_hci_interface());
-  evutil_make_socket_nonblocking(dd);
-
   /* Daemonize */
   if (!config_debug()) {
     if (daemon(0, 0)) {
@@ -68,17 +73,27 @@ int main(int argc, char **argv) {
 
   base = event_base_new();
 
+  /* Setup BLE pre-fork, child will not have permissions */
+  dd = ble_init(config_get_hci_interface());
+  evutil_make_socket_nonblocking(dd);
+  
   /* Setup Web Server, pre-fork to get low port */
   struct evhttp *http = evhttp_new(base);
   evhttp_bind_socket(http, "*", 80);
   evhttp_set_gencb(http,
 		   http_main_cb,
 		   (void *)config_get_webroot()); 
+
+  /* Setup sockets for parent/child IPC */
+  errno = 0;
+  if (socketpair(AF_UNIX, SOCK_STREAM, 0, ipc_sock_pair) < 0) {
+    log_error("Socket pair failed: %s\n", strerror(errno));
+    exit(errno);
+  }
   
   child_pid = fork();
   if (child_pid < 0) {
     log_error("Failed to spawn child", strerror(errno));
-    raise(SIGTERM); /* Cleanup BLE and Config */
     exit(errno);
   }
   if (child_pid > 0) {
@@ -98,8 +113,18 @@ void do_parent(void) {
   signal(SIGTERM, sigint_handler);
   signal(SIGHUP, sigint_handler);
   int status;
+
+  close(ipc_sock_pair[1]);
+  ipc_bev = bufferevent_socket_new(base, ipc_sock_pair[0], BEV_OPT_DEFER_CALLBACKS);
+  evutil_make_socket_nonblocking(ipc_sock_pair[0]);
+  bufferevent_setcb(ipc_bev, ipc_parent_readcb, NULL, NULL, NULL);
+  bufferevent_enable(ipc_bev, EV_READ|EV_WRITE);
+
+  event_base_dispatch(base);
+  
   while (true) {
     /* Loop for child events, if the child exits; then cleanup */
+    log_notice("Parent not running event loop\n");
     pid_t pid = waitpid(-1, &status, 0);
     /* If the parent was signaled, the signal handler will never
        give back control. So we should only reach this code if the
@@ -123,6 +148,12 @@ void do_parent(void) {
 
 void do_child(void) {
   /* In the child */
+  close(ipc_sock_pair[0]);
+  ipc_bev = bufferevent_socket_new(base, ipc_sock_pair[1], 0);
+  evutil_make_socket_nonblocking(ipc_sock_pair[1]);
+  bufferevent_setcb(ipc_bev, ipc_child_readcb, NULL, NULL, NULL);
+  bufferevent_enable(ipc_bev, EV_READ|EV_WRITE);
+  
   const char *user = config_get_user();
   struct passwd *pw = getpwnam(user);
   if (pw == NULL) {

@@ -16,7 +16,7 @@ define(['ajax'], function(ajax) {
 	window.setTimeout(fetch_beacons, 2500);
     }
     function fetch_beacons() {
-	ajax.get('beacons.json').then(update_beacon_table, function (resp) {
+	ajax.get_json('beacons.json').then(update_beacon_table, function (resp) {
 	    console.log("Failed to get recent beacons:", resp);
 	    window.setTimeout(fetch_beacons, 5000);
 	});
@@ -42,7 +42,7 @@ define(['ajax'], function(ajax) {
     }
     
     function populate_netstatus () {
-	ajax.get('net_status.json').then(
+	ajax.get_json('net_status.json').then(
 	    function (net) {
 		for (var type in net) {
 		    if (net.hasOwnProperty(type)) {
@@ -63,7 +63,7 @@ define(['ajax'], function(ajax) {
 	    });
     }
     function populate_svrstatus () {
-	ajax.get('server.json').then(function (server) {
+	ajax.get_json('server.json').then(function (server) {
 	    var dl = document.getElementById("server_status");
 	    dl.innerHTML = "<dt>Hostname</dt><dd>"+server["host"]+"</dd>";
 	    dl.innerHTML += "<dt>Last ACK</dt><dd>"+server["last_seen"]+"</dd>";

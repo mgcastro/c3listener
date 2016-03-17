@@ -45,22 +45,22 @@
         </div>
         <div class="col-sm-9 col-sm-offset-3 col-md-10 col-md-offset-2 main">
           <h1 class="page-header">Bluetooth</h1>
-	  <form >
+	  <form id="server-form">
 	    <div class="form-group">
 	      <label for="haab">Listener Height</label>
-	      <input name="haab" type="number" step="0.5" class="form-control" id="haab">
+	      <input name="haab" type="number" min="0" default="0" class="form-control" id="haab">
 	      <p class="help-block">
 		Height of the listener above / or below the average expected beacon height in meters.
 	      </p>
 	    </div>
 	    <div class="form-group">
 	      <label for="path_loss">Path Loss</label>
-	      <input name="path_loss" type="number" step="0.1" class="form-control" id="path_loss" min="2.0" max="4.0">
+	      <input name="path_loss" type="number" class="form-control" id="path_loss" default="3.2" step="0.001" min="2.0" max="4.0">
 	      <p class="help-block">
 		Environment specific path loss exponent. Typical values: Outdoors 2.0; Indoors 3.2.
 	      </p>
 	    </div>
-	    <button formmethod="post" type="submit" class="btn btn-default">Submit</button>
+	    <button disabled="disabled" formmethod="post" type="submit" class="btn btn-default">No Changes</button>
 	  </form>
         </div>
       </div>

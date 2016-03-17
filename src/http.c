@@ -2,12 +2,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/queue.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <errno.h>
 
 #include <event2/buffer.h>
+#include <event2/bufferevent.h>
 #include <event2/http.h>
 #include <event2/util.h>
 #include <evhttp.h>
@@ -45,7 +47,12 @@ struct mime_type {
 
 typedef void(*url_cb)(struct evhttp_request *, void *);
 
+/* Exported from the config module */
 extern char hostname[HOSTNAME_MAX_LEN + 1];
+
+/* Exported from main.c; ipc points to the correct end of a
+   bufferevent_pair in the parent and child */
+extern struct bufferevent *ipc_bev;
 
 static void server_json(struct evhttp_request *req, void *arg) {
   json_object * jobj = json_object_new_object();
@@ -182,13 +189,30 @@ static void http_post_cb(struct evhttp_request *req, void *arg) {
   //evbuffer_add_file(buf, fd, 0, st.st_size);
 
   char cbuf[128] = {0};
+  int n = 0;
   while (evbuffer_get_length(req->input_buffer)) {
-    int n = evbuffer_remove(req->input_buffer, cbuf, sizeof(cbuf)-1);
-    log_notice("POST > Got %d bytes\n", n);
-    log_notice("POST >>> %s\n", cbuf);
+    n += evbuffer_remove(req->input_buffer, cbuf, sizeof(cbuf)-(n));
+    if (n >= sizeof(cbuf)) {
+      evhttp_send_error(req, HTTP_BADREQUEST, "Request too large");
+      goto done;
+    }
   }
-  /* struct evkeyvalq * params; */
-  /* evhttp_parse_query_str(cbuf, params); */
+  struct evkeyvalq params;
+  evhttp_parse_query_str(cbuf, &params);
+  
+  struct evkeyval *kv;
+  TAILQ_FOREACH(kv, &params, next) {
+    size_t key_l = strlen(kv->key);
+    size_t val_l = strlen(kv->value);
+    bufferevent_write(ipc_bev, &key_l, sizeof(size_t));
+    bufferevent_write(ipc_bev, kv->key, strlen(kv->key));
+    bufferevent_write(ipc_bev, &val_l, sizeof(size_t));
+    bufferevent_write(ipc_bev, kv->value, strlen(kv->value));
+  }
+  
+  /* Free evkeyvalq data structures */
+  evhttp_clear_headers(&params);
+  
   evhttp_send_reply(req, 200, "OK", buf);
   goto done;
   
@@ -244,7 +268,6 @@ void http_main_cb(struct evhttp_request *req, void *arg) {
   if (decoded_path == NULL)
     goto err;
   if (!strncmp(decoded_path, "/", 2)) {
-    log_notice("poop\n");
     decoded_path = realloc(decoded_path, strlen("/index.html"));
     strcpy(decoded_path, "/index.html");
   }
@@ -265,6 +288,19 @@ void http_main_cb(struct evhttp_request *req, void *arg) {
     goto err;
   }
 
+  /* Provide ETag and Not Modified */
+  char etag[12] = {0};
+  sprintf(etag, "%ld", st.st_mtime);
+  const char *current_etag = evhttp_find_header(evhttp_request_get_input_headers(req), "If-None-Match");
+  if (current_etag) {
+    if (!strcmp(current_etag, etag)) {
+      evhttp_send_reply(req, HTTP_NOTMODIFIED, "Not Modified", evhttp_request_get_output_buffer(req));
+      goto done;
+    }
+  }
+  evhttp_add_header(evhttp_request_get_output_headers(req),
+		    "ETag", etag);
+  
   /* Get Mime type / set header */
   const char *type;
   type = mime_guess(decoded_path);

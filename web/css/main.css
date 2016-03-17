@@ -122,3 +122,15 @@ body {
     position: relative;
     top: 20px;
 }
+
+/*
+ *  Fades are too fast
+ */
+
+div.alert {
+    width: 25%;
+    height: 40px;
+    display: float;
+    position: absolute;
+    left: 35%;
+}

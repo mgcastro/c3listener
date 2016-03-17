@@ -6,13 +6,25 @@ define(function() {
 	    var req = new XMLHttpRequest();
 	    req.open(method, prefix+url);
 	    if (json_p == true) {
-		data = JSON.stringify(data);
+		if (data) {
+		    data = JSON.stringify(data);
+		} else {
+		    data = "";
+		}
 		req.setRequestHeader('Content-Type', 'application/json');
+	    } else {
+		if (method == "POST") {
+		    req.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+		}
 	    }
 	    req.onload = function() {
 		if (req.status >= 200 && req.status <= 300) {
 		    if (req.status != 204 && req.status != 201) {
-			resolve(JSON.parse(req.response));
+			if (json_p) {
+			    resolve(JSON.parse(req.response));
+			} else {
+			    resolve(req);
+			}
 		    } else {
 			resolve(null);
 		    }
@@ -30,7 +42,7 @@ define(function() {
     };
     return {
 	'post': function(url, data) {
-	    return request('POST', url, data);
+	    return request('POST', url, data, false);
 	},
 	'get': function(url) {
 	    return request('GET', url);
@@ -47,5 +59,8 @@ define(function() {
 	'put_json': function(url, data) {
 	    return request('PUT', url, data, true);
 	},
+	'get_json': function(url) {
+	    return request('GET', url, undefined, true);
+	}
     }
 });

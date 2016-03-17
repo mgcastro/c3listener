@@ -43,7 +43,7 @@
             <li><a href="bluetooth.html">Bluetooth</a></li>
           </ul>
         </div>
-        <div class="col-sm-9 col-sm-offset-3 col-md-10 col-md-offset-2 main">
+        <div id="main" class="col-sm-9 col-sm-offset-3 col-md-10 col-md-offset-2 main">
           <h1 class="page-header">Network</h1>
 	  <nav>
 	  <ul class="nav nav-tabs nav-justified" role="tablist">
@@ -57,19 +57,27 @@
 	    <div role="tabpanel" class="tab-pane fade in active" id="wired">
 	      <form id="wired-form">
 	      <div class="form-group">
-		<label for="ip_type">IP Address Type</label>
-		<select name="ip_type" class="form-control" id="ip_type">
+		<label for="proto">IP Address Type</label>
+		<select name="proto" class="form-control" id="proto">
 		  <option value="dhcp">DHCP</option>
 		  <option value="static">Static</option>
 		</select>
 	      </div>
 	      <div id="static_options">
 		<div class="form-group">
-		  <label for="ip_addr">IP Address</label>
-		  <input name="static_ip" type="text" class="form-control" id="ip_addr">
+		  <label for="ipaddr">IP Address</label>
+		  <input name="ipaddr" type="text" class="form-control" id="ipaddr">
 		  <p class="help-block">
 		    IP Address of this Listener including network
 		    mask. e.g 192.168.15.7/24
+		  </p>
+		</div>
+		<div class="form-group">
+		  <label for="netmask">Network Mask</label>
+		  <input name="netmask" type="text" class="form-control" id="netmask">
+		  <p class="help-block">
+		    Netmask mask, in bits (24) or octet notation
+		    (e.g. 255.255.255.0)
 		  </p>
 		</div>
 		<div class="form-group">
@@ -85,11 +93,11 @@
 		  <input name="dns" type="text" class="form-control" id="dns">
 		  <p class="help-block">
 		    Comma separated list of hosts (ip addresses) that
-		    can recursively resolve DNS names for this listener.
+		    can recursively resolve DNS names for this listener. Maximum 3 servers.
 		  </p>
 		</div>
 	      </div>
-	      <button formmethod="post" type="submit" class="btn btn-default">Submit</button>
+	      <button formaction="" disabled="disabled" formmethod="post" type="submit" class="btn btn-default">No Changes</button>
 	    </form>
 	    </div>
 	    <div role="tabpanel" class="tab-pane fade in" id="wireless">
@@ -103,26 +111,26 @@
 	      </div>
 	      <div class="form-group">
 		<label for="key">Wireless Passphrase</label>
-		<input name="wpa_key" required="true" type="password" class="form-control" id="key">
+		<input name="key" required="true" type="password" class="form-control" id="key">
 		<p class="help-block">
 		  WPA2-PSK for this network. Min. 8 Characters, Max 63 Characters
 		</p>
 	      </div>
-	      <button formmethod="post" type="submit" class="btn btn-default">Submit</button>
+	      <button formaction="" formmethod="post" type="submit" disabled="disabled" class="btn btn-default">No Changes</button>
 	    </form>
 	    </div>
 	    <div role="tabpanel" class="tab-pane fade in" id="server">
-	    <form>
+	    <form id="server-form">
 	      <div class="form-group">
 		<label for="host">Server Name</label>
-		<input name="hostname" required="true" type="text" class="form-control" id="host">
+		<input name="host" required="true" type="text" class="form-control" id="host">
 		<p class="help-block">
 		  Hostname or IP Address of the Location/Analytics Server
 		</p>
 	      </div>
 	      <div class="form-group">
 		<label for="port">Server Port</label>
-		<input name="port" min="1" max="65535" required="true" type="number" class="form-control" id="port">
+		<input name="port" min="1" max="65535" default="9999" step="1" required="true" type="number" class="form-control" id="port">
 	      <p class="help-block">
 		Port number at which to connect to the remote server.
 	      </p>
@@ -130,17 +138,17 @@
 	    <div class="form-group">
 	      <label for="interval">Report Interval</label>
 	      <div class="input-group">
-		<input name="interval" min="500" max="5000" step="250" required="true"
+		<input name="interval" min="500" max="5000" default="1000" required="true"
 		       type="number" class="form-control" id="interval">
 		<span class="input-group-addon"
 		      id="interval-units">milliseconds</span>
 	      </div>
 	      <p class="help-block">
 		How often should the listener send data to the server
-		in milliseconds. 500 = every 0.5 sec., 5000 = 5 sec.
+		in milliseconds. Min. 500 = every 0.5 sec., Max. 5000 = 5 sec.
 	      </p>
 	    </div>
-	    <button formmethod="post" type="submit" class="btn btn-default">Submit</button>
+	      <button formaction="" disabled="disabled" formmethod="post" type="submit" class="btn btn-default">No Changes</button>
 	    </form>
 	  </div>
         </div>
