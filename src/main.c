@@ -28,6 +28,7 @@
 #include "report.h"
 #include "udp.h"
 #include "ipc.h"
+#include "ipc-privileged.h"
 
 #define EVLOOP_NO_EXIT_ON_EMPTY 0x04
 
@@ -45,7 +46,7 @@ struct event_base *base;
 
 /* Sockets linking parent and child for IPC */
 int ipc_sock_pair[2];
-struct bufferevent *ipc_bev = {0};
+extern struct bufferevent *ipc_bev;
 
 
 void sigint_handler(int);

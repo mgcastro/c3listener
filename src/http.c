@@ -20,6 +20,7 @@
 
 #include "beacon.h"
 #include "config.h"
+#include "ipc.h"
 #include "time_util.h"
 #include "uci_json.h"
 
@@ -50,7 +51,7 @@ typedef void(*url_cb)(struct evhttp_request *, void *);
 /* Exported from the config module */
 extern char hostname[HOSTNAME_MAX_LEN + 1];
 
-/* Exported from main.c; ipc points to the correct end of a
+/* Exported from ipc.c; ipc points to the correct end of a
    bufferevent_pair in the parent and child */
 extern struct bufferevent *ipc_bev;
 
@@ -81,20 +82,33 @@ static void server_json(struct evhttp_request *req, void *arg) {
 }
 
 static void network_json(struct evhttp_request *req, void *arg) {
-  json_object *jobj = json_object_new_object();
 
-  json_object_object_add(jobj, "wired",
-			 uci_section_jobj("network.lan2"));
-  json_object_object_add(jobj, "wireless",
-			 uci_section_jobj("wireless.@wifi-iface[0]"));
-  
+  /* Send command to parent to retrieve uci section as JSON */
+  ipc_resp_t *r = ipc_cmd_get("network");
+  log_notice("Child wrote ipc_cmd: get network\n");
+  char *output = ipc_resp_str(r);
+  log_notice("Response: %s", output);
+  free(output);
   struct evbuffer *buf = evhttp_request_get_output_buffer(req);
-  const char *json = json_object_to_json_string(jobj);
-  evbuffer_add(buf, json, strlen(json));
+  if (r->success) {
+    evbuffer_add(buf, r->resp, r->resp_l);
+  } else {
+    json_object *jobj = json_object_new_object();
+    if (r->resp) {
+      json_object_object_add(jobj, "error",
+			     json_object_new_string(r->resp));
+    } else {
+      json_object_object_add(jobj, "error",
+			     json_object_new_string("Corrupt Response"));
+    }
+    const char *json = json_object_to_json_string(jobj);
+    evbuffer_add(buf, json, strlen(json));
+    json_object_put(jobj);
+  }
+  ipc_resp_free(r);
   evhttp_add_header(evhttp_request_get_output_headers(req),
 		    "Content-Type", "application/json");
   evhttp_send_reply(req, 200, "OK", buf);
-  json_object_put(jobj);
 }
 
 static void *beacon_hash_walker(void *ptr, void *jobj) {
@@ -201,30 +215,30 @@ static void http_post_cb(struct evhttp_request *req, void *arg) {
   evhttp_parse_query_str(cbuf, &params);
   
   struct evkeyval *kv;
+  ipc_resp_t *r = NULL;
   TAILQ_FOREACH(kv, &params, next) {
-    size_t key_l = strlen(kv->key);
-    size_t val_l = strlen(kv->value);
-    bufferevent_write(ipc_bev, &key_l, sizeof(size_t));
-    bufferevent_write(ipc_bev, kv->key, strlen(kv->key));
-    bufferevent_write(ipc_bev, &val_l, sizeof(size_t));
-    bufferevent_write(ipc_bev, kv->value, strlen(kv->value));
+    r = ipc_cmd_set(kv->key, kv->value);
+    if (!r->success) {
+      goto err;
+    }
+    ipc_resp_free(r);
   }
-  
-  /* Free evkeyvalq data structures */
-  evhttp_clear_headers(&params);
-  
   evhttp_send_reply(req, 200, "OK", buf);
   goto done;
   
  err:
-  evhttp_send_error(req, 404, "Document was not found");
-  
+  if (r && r->resp && r->resp_l > 0) {
+    evhttp_send_error(req, HTTP_BADREQUEST, r->resp);
+  } else {
+    evhttp_send_error(req, HTTP_BADREQUEST, "Balls");
+  }
  done:
+  evhttp_clear_headers(&params);
   if (decoded)
     evhttp_uri_free(decoded);
   if (decoded_path)
     free(decoded_path);
-}
+  }
 
 void http_main_cb(struct evhttp_request *req, void *arg) {
   const char *docroot = arg;

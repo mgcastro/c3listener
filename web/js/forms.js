@@ -145,7 +145,7 @@ define(["ajax", "util"], function (ajax, util) {
 	
 	var slice = Array.prototype.slice;
 	var inputs = slice.call(form.getElementsByTagName("input"));
-	inputs.concat(slice.call(form.getElementsByTagName("select")));
+	inputs = inputs.concat(slice.call(form.getElementsByTagName("select")));
 	for (var i = 0; i < inputs.length; i++) {
 	    if (obj.hasOwnProperty(inputs[i].name)) {
 		inputs[i].value = obj[inputs[i].name];
