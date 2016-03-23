@@ -121,14 +121,17 @@ void ipc_cmd_free(ipc_cmd_t *c) {
 char *ipc_cmd_str(ipc_cmd_t *c) {
   char *output = calloc(1, 256);
   if (output) {
-    sprintf(output, "%d:%d");
+    sprintf(output, "%d:%d ", (int) c->serial, c->cmd);
     if (c->key) {
       strcat(output, c->key);
-    }
-    if (c->val) {
       strcat(output, "=");
-      strcat(output, c->val);
+      if (c->val) {
+	strcat(output, c->val);
+      } else {
+	strcat(output, "NULL");
+      }
     }
+    strcat(output, "\n");
   }
   return output;
 }

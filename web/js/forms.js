@@ -73,7 +73,7 @@ define(["ajax", "util"], function (ajax, util) {
 	    validate_form(form, field_valid_map, evt);
 	});
     }
-    
+
     function valid_wpa_key (el) {
 	var key_l = el.value.length;
 	var valid_hex = /^[0-9a-fA-F]$/
@@ -89,6 +89,9 @@ define(["ajax", "util"], function (ajax, util) {
 	}
 	return true;
     }
+
+    var filled_values = {};
+    
     function validate_form (form, field_valid_map, evt) {
 	var r_list = [];
 	var els = form.getElementsByTagName('input')
@@ -116,23 +119,49 @@ define(["ajax", "util"], function (ajax, util) {
 		return prev && cur;
 	}, true);
 
+	/* Prepopulate formdata, even if unposted to detect actual changes to form */
+	var data = new FormData(form);
+	if (filled_values.hasOwnProperty(form.getAttribute('id'))) {
+	    var prev_values = filled_values[form.getAttribute('id')];
+	    for (var field in prev_values) {
+		if (prev_values.hasOwnProperty(field)) {
+		    var field_vals = data.getAll(field);
+		    if (field_vals.length > 1) {
+			if (field_vals == prev_values[field]) {
+			    data.delete(field);
+			}
+		    } else {
+			if (field_vals[0] == prev_values[field]) {
+			    data.delete(field);
+			}
+		    }
+		}
+	    }
+	}
+	
 	if (evt && evt.type == "submit") {
 	    /* If we're executing js, try to do nice async POSTS, w/o
 	     * js fallback to form post w/o client-side validation */
 	    evt.preventDefault();
 	    if (valid) {
-		var data = new FormData(evt.target);
-		ajax.post("", util.form_encode(data)).then(function(resp) {
-		    var button = form.getElementsByTagName("button")[0];
-		    button.textContent = "Saved";
-		    button.setAttribute("disabled", "disabled");
-		});
+		if (!util.formdata_empty(data)) {
+		    ajax.post("", util.form_encode(data)).then(function(resp) {
+			var button = form.getElementsByTagName("button")[0];
+			button.textContent = "Saved";
+			button.setAttribute("disabled", "disabled");
+		    });
+		}
 	    }
 	} else {
 	    var button = form.getElementsByTagName("button")[0];
 	    if (valid) {
-		button.textContent = "Save Changes";
-		button.removeAttribute("disabled");
+		if (!util.formdata_empty(data)) {
+		    button.textContent = "Save Changes";
+		    button.removeAttribute("disabled");
+		} else {
+		    button.textContent = "No Changes";
+		    button.setAttribute("disabled", "disabled");
+		}
 	    } else {
 		button.textContent = "Fix Errors";
 		button.setAttribute("disabled", "disabled");
@@ -140,6 +169,7 @@ define(["ajax", "util"], function (ajax, util) {
 	}
 	return valid;
     }
+    
     function fill_form (form_id, obj) {
 	var form = document.getElementById(form_id);
 	
@@ -151,6 +181,8 @@ define(["ajax", "util"], function (ajax, util) {
 		inputs[i].value = obj[inputs[i].name];
 	    }
 	}
+	/* Cache previous values so we can send only changes */
+	filled_values[form_id] = obj;
     }
     return {
 	"register": register_form_validator,

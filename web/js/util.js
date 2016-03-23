@@ -1,4 +1,8 @@
 define(["jquery","ajax"], function ($, ajax) {
+    function formdata_is_empty_p (formdata) {
+	var first = formdata.entries().next();
+	return (first['done']) && (typeof first['value'] === "undefined");
+    }
     function populate_unit_id () {
 	ajax.get_json('server.json').then(function (server) {
 	    document.getElementById("unit-id").textContent = server["listener_id"];
@@ -41,5 +45,6 @@ define(["jquery","ajax"], function ($, ajax) {
 	"form_encode": form_encode,
 	"alert": util_alert,
 	"populate_unit_id": populate_unit_id,
+	"formdata_empty": formdata_is_empty_p,
     }
 });
