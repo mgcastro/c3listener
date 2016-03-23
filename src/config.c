@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include <sys/stat.h>
 
 #include <libconfig.h>
 
@@ -182,17 +183,31 @@ const char *config_get_user(void) {
   }
 }
 
+static bool is_dir_p(const char *path) {
+  struct stat st;
+  return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
+}
+
 const char *config_get_webroot(void) {
   if (cli_cfg.webroot != NULL) {
+    log_notice("webroot: %s (CLI)\n", cli_cfg.webroot);
     return cli_cfg.webroot;
-  } else {
-    const char *buf;
-    if (config_lookup_string(&cfg, "webroot", &buf)) {
+  }
+  const char *buf;
+  if (config_lookup_string(&cfg, "webroot", &buf)) {
+    if (is_dir_p(buf)) {
+      log_notice("webroot: %s (config file)\n", buf);
       return buf;
-    } else {
-      return DEFAULT_WEBROOT;
     }
   }
+#ifdef WEBROOT
+  if (is_dir_p(WEBROOT)) {
+    log_notice("webroot: %s (cmake)\n", WEBROOT);
+    return WEBROOT;
+  }
+#endif
+  log_notice("webroot: %s (default)\n", DEFAULT_WEBROOT);
+  return DEFAULT_WEBROOT;
 }
 
 void config_cleanup(void) {

@@ -32,7 +32,10 @@ git_describe(PACKAGE_VERSION)
 file(GLOB c3listener_SRC
     "src/*.c"
 )
-add_definitions(-DSYSCONFDIR=\"${CMAKE_INSTALL_PREFIX}/etc\" -DPACKAGE_VERSION=\"${PACKAGE_VERSION}\" -D_GNU_SOURCE)
+add_definitions(-DSYSCONFDIR=\"${CMAKE_INSTALL_PREFIX}/etc\"
+                -DWEBROOT=\"${CMAKE_INSTALL_PREFIX}/share/c3listener/web\"
+		-DPACKAGE_VERSION=\"${PACKAGE_VERSION}\"
+		-D_GNU_SOURCE)
 add_executable(c3listener ${c3listener_SRC})
 target_link_libraries(c3listener m ${CONFIG_LIBRARY} ${BLUEZ_LIBRARY} ${JSONC_LIBRARY} ${LIBEVENT_LIB}
 		      ${UCI_LIBRARY} ${LIBEVHTP_LIB})
@@ -44,3 +47,6 @@ endif (LIBMAGIC_FOUND)
 
 install (TARGETS c3listener DESTINATION bin)
 install (FILES c3listener.conf DESTINATION etc)
+install (DIRECTORY web DESTINATION share/c3listener
+         FILE_PERMISSIONS WORLD_READ
+         DIRECTORY_PERMISSIONS WORLD_READ WORLD_EXECUTE)
