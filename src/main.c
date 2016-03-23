@@ -35,7 +35,7 @@
 #include <event2/event.h>
 #include <event2/http.h>
 static void log_cb(int severity, const char *msg) {
-  syslog(severity, msg);
+  syslog(severity, "%s", msg);
   return;
 }
 
