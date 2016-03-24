@@ -5,14 +5,14 @@
 #include "kalman.h"
 
 typedef struct ibeacon {
-  hashable_filterable_t *next, *prev;
-  kalman_t kalman;
-  uint8_t uuid[16];
-  uint16_t major, minor;
-  uint16_t count;
-  double last_seen, last_report, distance, variance;
-  int8_t tx_power;
-  bool init;
+    hashable_filterable_t *next, *prev;
+    kalman_t kalman;
+    uint8_t uuid[16];
+    uint16_t major, minor;
+    uint16_t count;
+    double last_seen, last_report, distance, variance;
+    int8_t tx_power;
+    bool init;
 } beacon_t;
 
 int beacon_index(void *);

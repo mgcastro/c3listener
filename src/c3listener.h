@@ -15,10 +15,10 @@
 char *hexlify(const uint8_t *src, size_t n);
 
 typedef struct advdata {
-  char mac[6];
-  char data[3];
-  int data_len;
-  int rssi;
+    char mac[6];
+    char data[3];
+    int data_len;
+    int rssi;
 } adv_data_t;
 
 #endif /* C3LISTENER_H */

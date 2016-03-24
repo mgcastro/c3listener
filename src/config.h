@@ -6,25 +6,25 @@
 
 #define HOSTNAME_MAX_LEN 32
 #define MAX_HASH_CB                                                            \
-  5 /* Max number of functions called on each                                  \
-       location during hash table walk */
+    5 /* Max number of functions called on each                                \
+         location during hash table walk */
 
 #define GC_INTERVAL_SEC                                                        \
-  (MAX_BEACON_INACTIVE_SEC / 2) /* How often to                                \
-                                   check for                                   \
-                                   inactive                                    \
-                                   beacons */
+    (MAX_BEACON_INACTIVE_SEC / 2) /* How often to                              \
+                                     check for                                 \
+                                     inactive                                  \
+                                     beacons */
 
 #define KEEP_ALIVE_SEC 30
 
 #define MAX_ACK_INTERVAL_SEC                                                   \
-  40 /* Reopen UDP socket if we haven't                                        \
-       heard from the server in for this                                       \
-       long */
+    40 /* Reopen UDP socket if we haven't                                      \
+         heard from the server in for this                                     \
+         long */
 
 #define MAX_BEACON_INACTIVE_SEC                                                \
-  10 /* Free memory for any beacons                                            \
-        quietfor this long */
+    10 /* Free memory for any beacons                                          \
+          quietfor this long */
 
 #define DEFAULT_CONFIG_FILE SYSCONFDIR "/c3listener.conf"
 #define DEFAULT_REMOTE_HOSTNAME "127.0.0.1"
@@ -38,11 +38,11 @@
 #define DEFAULT_WEBROOT "./web"
 
 typedef struct cli_conf {
-  int_fast8_t hci_dev_id;
-  bool debug;
-  char *config_file;
-  char *user;
-  char *webroot;
+    int_fast8_t hci_dev_id;
+    bool debug;
+    char *config_file;
+    char *user;
+    char *webroot;
 } c3_cli_config_t;
 
 void config_cleanup(void);

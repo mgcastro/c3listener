@@ -18,16 +18,16 @@ typedef double state_t[2];
 typedef double kgain_t[2];
 
 typedef struct kalman_parameters {
-  state_t state;
-  covariance_t P;
-  bool init;
-  double last_seen;
+    state_t state;
+    covariance_t P;
+    bool init;
+    double last_seen;
 } kalman_t;
 
 typedef struct generic_hashable_filterable {
-  hashable_t *next, *prev;
-  kalman_t kalman;
-  double last_seen;
+    hashable_t *next, *prev;
+    kalman_t kalman;
+    double last_seen;
 } hashable_filterable_t;
 
 double kalman(void *, int8_t, double);

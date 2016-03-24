@@ -5,12 +5,12 @@
 #include <stddef.h>
 
 #define HASH_TABLE_LENGTH                                                      \
-  251 /* Ought to be prime and approximately                                   \
-         as large as expected number of                                        \
-         entries for best performance */
+    251 /* Ought to be prime and approximately                                 \
+           as large as expected number of                                      \
+           entries for best performance */
 
 typedef struct generic_hashtable_obj {
-  struct generic_hashtable_obj *next, *prev;
+    struct generic_hashtable_obj *next, *prev;
 } hashable_t;
 
 typedef bool (*equal_p)(void *a, void *b);
