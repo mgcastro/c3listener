@@ -80,7 +80,9 @@ int main(int argc, char **argv) {
   
   /* Setup Web Server, pre-fork to get low port */
   struct evhttp *http = evhttp_new(base);
-  evhttp_bind_socket(http, "*", 80);
+  if (evhttp_bind_socket(http, NULL, 80) < 0) {
+    log_error("Could not bind http socket.");
+  }
   evhttp_set_gencb(http,
 		   http_main_cb,
 		   (void *)config_get_webroot()); 

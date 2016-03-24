@@ -118,7 +118,7 @@ bool config_debug(void) {
 
 const char *config_get_remote_hostname(void) {
   const char *buf;
-  if (!config_lookup_string(&cfg, "server", &buf)) {
+  if (config_lookup_string(&cfg, "server", &buf)) {
     return buf;
   } else {
     return DEFAULT_REMOTE_HOSTNAME;
