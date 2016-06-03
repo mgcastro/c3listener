@@ -40,8 +40,9 @@ static void config_do_cli(int argc, char **argv) {
         c = getopt_long(argc, argv, "dc:u:i:w:", long_options, &option_index);
 
         /* Detect the end of the options. */
-        if (c == -1)
+        if (c == -1) {
             break;
+        }
 
         switch (c) {
         case 'i':
@@ -67,8 +68,9 @@ static void config_do_cli(int argc, char **argv) {
             cli_cfg.debug = true;
             break;
         }
-        if (c == -1)
+        if (c == -1) {
             break;
+        }
     }
     return;
 }

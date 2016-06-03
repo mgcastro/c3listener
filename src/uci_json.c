@@ -17,14 +17,18 @@ json_object *uci_section_jobj(const char *path) {
     if (!uci_ctx) {
         uci_ctx = uci_alloc_context();
     }
-    char *tuple = strdupa(path);
+    /* uci_lookup_ptr requires mutable arg, so we copy so that we can
+       use simpler string literals in the external interface */
+    char *tuple = strdup(path);
     if (!tuple) {
         exit(errno);
     }
     struct uci_ptr ptr;
     if (uci_lookup_ptr(uci_ctx, &ptr, tuple, true) != UCI_OK) {
+        free(tuple);
         return NULL;
     }
+    free(tuple);
     if (ptr.flags & UCI_LOOKUP_COMPLETE) {
         jobj = json_object_new_object();
         struct uci_element *el, *list_el;

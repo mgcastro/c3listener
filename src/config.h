@@ -4,7 +4,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define HOSTNAME_MAX_LEN 32
+#define UNUSED(x) (void)(x)
+
+#define HOSTNAME_MAX_LEN 255
 #define MAX_HASH_CB                                                            \
     5 /* Max number of functions called on each                                \
          location during hash table walk */

@@ -98,7 +98,7 @@ void hash_walk(walker_cb *walker, void **args, size_t size) {
         hashable_t *v = hashtable[i];
         while (v != NULL) {
             log_debug("Running walker on %p\n", v);
-            for (int j = 0; j < size; j++) {
+            for (size_t j = 0; j < size; j++) {
                 v = walker[j](v, args[j]);
                 if (v == NULL) {
                     log_debug("Breaking walk due to walkercb NULL");

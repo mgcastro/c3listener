@@ -38,7 +38,7 @@ extern int dd;
 char *hexlify(const uint8_t *src, size_t n) {
     char *buf = malloc(n * 2 + 1);
     memset(buf, 0, n * 2 + 1);
-    for (int i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++) {
         sprintf(buf + (i * 2), "%.2x", src[i]);
     }
     return buf;
@@ -116,6 +116,7 @@ int ble_init(int dev_id) {
 }
 
 void ble_readcb(struct bufferevent *bev, void *ptr) {
+    UNUSED(ptr);
     evt_le_meta_event *meta;
     le_advertising_info *info;
 

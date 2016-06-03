@@ -56,6 +56,7 @@ extern char hostname[HOSTNAME_MAX_LEN + 1];
 extern struct bufferevent *ipc_bev;
 
 static void server_json(struct evhttp_request *req, void *arg) {
+    UNUSED(arg);
     json_object *jobj = json_object_new_object();
     json_object_object_add(jobj, "listener_id",
                            json_object_new_string(hostname));
@@ -83,6 +84,7 @@ static void server_json(struct evhttp_request *req, void *arg) {
 }
 
 static void network_json(struct evhttp_request *req, void *arg) {
+    UNUSED(arg);
     json_object *jobj = json_object_new_object();
 
     json_object_object_add(jobj, "wired", uci_section_jobj("network.lan2"));
@@ -114,6 +116,7 @@ static void *beacon_hash_walker(void *ptr, void *jobj) {
 }
 
 static void beacon_json(struct evhttp_request *req, void *arg) {
+    UNUSED(arg);
     log_notice("In beacon callback");
     json_object *b_array = json_object_new_array();
 
@@ -147,8 +150,9 @@ static const char *mime_guess(const char *fname) {
     if (last_dot != NULL) {
         char *extension = last_dot + 1;
         for (entry = types; entry->ext; entry++) {
-            if (!evutil_ascii_strcasecmp(entry->ext, extension))
+            if (!evutil_ascii_strcasecmp(entry->ext, extension)) {
                 return entry->mime;
+            }
         }
     }
 #ifdef HAVE_LIBMAGIC
@@ -163,6 +167,8 @@ static const char *mime_guess(const char *fname) {
 }
 
 static void http_post_cb(struct evhttp_request *req, void *arg) {
+    UNUSED(arg);
+    ipc_resp_t *r = NULL;
     const char *uri = evhttp_request_get_uri(req);
     log_notice("Got a POST request for <%s>\n", uri);
 
@@ -180,8 +186,9 @@ static void http_post_cb(struct evhttp_request *req, void *arg) {
     }
 
     char *decoded_path = evhttp_uridecode(path, 0, NULL);
-    if (decoded_path == NULL)
+    if (decoded_path == NULL) {
         goto err;
+    }
 
     /* Set header */
     evhttp_add_header(evhttp_request_get_output_headers(req), "Content-Type",
@@ -191,7 +198,7 @@ static void http_post_cb(struct evhttp_request *req, void *arg) {
     // evbuffer_add_file(buf, fd, 0, st.st_size);
 
     char cbuf[128] = {0};
-    int n = 0;
+    size_t n = 0;
     while (evbuffer_get_length(req->input_buffer)) {
         n += evbuffer_remove(req->input_buffer, cbuf, sizeof(cbuf) - (n));
         if (n >= sizeof(cbuf)) {
@@ -203,7 +210,6 @@ static void http_post_cb(struct evhttp_request *req, void *arg) {
     evhttp_parse_query_str(cbuf, &params);
 
     struct evkeyval *kv;
-    ipc_resp_t *r = NULL;
     TAILQ_FOREACH(kv, &params, next) {
         r = ipc_cmd_set(kv->key, kv->value);
         if (!r->success) {
@@ -222,10 +228,12 @@ err:
     }
 done:
     evhttp_clear_headers(&params);
-    if (decoded)
+    if (decoded) {
         evhttp_uri_free(decoded);
-    if (decoded_path)
+    }
+    if (decoded_path) {
         free(decoded_path);
+    }
 }
 
 void http_main_cb(struct evhttp_request *req, void *arg) {
@@ -252,8 +260,7 @@ void http_main_cb(struct evhttp_request *req, void *arg) {
         return;
     }
 
-    const char *path;
-    path = evhttp_uri_get_path(decoded);
+    const char *path = evhttp_uri_get_path(decoded);
     if (!path) {
         path = "/";
     }
@@ -262,15 +269,19 @@ void http_main_cb(struct evhttp_request *req, void *arg) {
        match */
     for (struct url_map_s *url_map_entry = url_map; url_map_entry->path;
          url_map_entry++) {
-        if (!evutil_ascii_strcasecmp(url_map_entry->path, path))
-            return url_map_entry->handler(req, arg);
+        if (!evutil_ascii_strcasecmp(url_map_entry->path, path)) {
+            url_map_entry->handler(req, arg);
+            return;
+        }
     }
-
+    int fd = -1;
     char *whole_path = NULL;
     char *decoded_path = evhttp_uridecode(path, 0, NULL);
-    if (decoded_path == NULL)
+    if (decoded_path == NULL) {
         goto err;
+    }
     if (!strncmp(decoded_path, "/", 2)) {
+        log_notice("Trying to rewrite root path\n");
         decoded_path = realloc(decoded_path, strlen("/index.html"));
         strcpy(decoded_path, "/index.html");
     }
@@ -280,15 +291,17 @@ void http_main_cb(struct evhttp_request *req, void *arg) {
         perror("malloc");
         goto err;
     }
-    evutil_snprintf(whole_path, len, "%s/%s", docroot, decoded_path);
+    evutil_snprintf(whole_path, len, "%s%s", docroot, decoded_path);
+    log_notice("decoded: %s; whole: %s\n", decoded_path, whole_path);
     struct stat st;
     if (stat(whole_path, &st) < 0) {
         log_notice("Cannot find %s\n");
         goto err;
-    }
-    if (S_ISDIR(st.st_mode)) {
-        log_notice("%s is a directory\n");
-        goto err;
+    } else {
+      if (S_ISDIR(st.st_mode)) {
+	  log_notice("%s is a directory\n", docroot);
+	  goto err;
+      }
     }
 
     /* Provide ETag and Not Modified */
@@ -312,7 +325,6 @@ void http_main_cb(struct evhttp_request *req, void *arg) {
                       type);
 
     /* Send file */
-    int fd = -1;
     if ((fd = open(whole_path, O_RDONLY)) < 0) {
         perror("open");
         goto err;
@@ -324,13 +336,17 @@ void http_main_cb(struct evhttp_request *req, void *arg) {
 
 err:
     evhttp_send_error(req, 404, "Document was not found");
-    if (fd >= 0)
+    if (fd >= 0) {
         close(fd);
+    }
 done:
-    if (decoded)
+    if (decoded) {
         evhttp_uri_free(decoded);
-    if (decoded_path)
+    }
+    if (decoded_path) {
         free(decoded_path);
-    if (whole_path)
+    }
+    if (whole_path) {
         free(whole_path);
+    }
 }

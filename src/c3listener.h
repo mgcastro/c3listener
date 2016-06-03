@@ -7,7 +7,6 @@
 
 #include "kalman.h"
 
-#define HOSTNAME_MAX_LEN 255
 #define MAX_NET_PACKET 64
 
 #define REPORT_INTERVAL_MSEC 500 /* How often to send reports */

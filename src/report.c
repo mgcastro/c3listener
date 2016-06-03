@@ -29,6 +29,9 @@ char hostname[HOSTNAME_MAX_LEN + 1] = {0};
 static struct bufferevent *udp_bev;
 
 void report_cb(int a, short b, void *self) {
+    UNUSED(a);
+    UNUSED(b);
+    UNUSED(self);
     int cb_idx = 0;
     walker_cb func[MAX_HASH_CB] = {NULL};
     void *args[MAX_HASH_CB] = {NULL};
@@ -87,7 +90,7 @@ int report_header_length(void) {
     return hostlen + 3;
 }
 
-int report_free_bytes(void) {
+size_t report_free_bytes(void) {
     return p_buf_size - p_buf_pos;
 }
 
@@ -97,6 +100,7 @@ void report_send(void) {
 }
 
 void *report_beacon(void *a, void *unused) {
+    UNUSED(unused);
     /* Appends a beacon report to udp_packet buffer returning size,
        funny args and return are to comply with walker_cb ABI */
     beacon_t *b = a;

@@ -11,11 +11,13 @@
 
 #include <json-c/json.h>
 
+#include "config.h"
 #include "ipc.h"
 #include "ipc-privileged.h"
 #include "log.h"
 
 void ipc_parent_readcb(struct bufferevent *bev, void *ctx) {
+    UNUSED(ctx);
     log_notice("Parent notified of bufferevent\n");
     struct evbuffer *in_buf = bufferevent_get_input(bev);
     while (evbuffer_get_length(in_buf) > 0) {

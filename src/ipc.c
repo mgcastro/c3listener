@@ -7,6 +7,7 @@
 #include <event2/bufferevent.h>
 #include <event2/http.h>
 
+#include "config.h"
 #include "ipc.h"
 #include "log.h"
 
@@ -14,6 +15,8 @@ static uint_fast16_t ipc_serial = 0;
 struct bufferevent *ipc_bev = {0};
 
 void ipc_child_readcb(struct bufferevent *bev, void *ctx) {
+    UNUSED(ctx);
+    UNUSED(bev);
     /* Will process resp from parent? */
     return;
 }
@@ -63,6 +66,7 @@ ipc_cmd_t *ipc_cmd_alloc(void) {
 
 void ipc_process_resp(struct evbuffer *buffer,
                       const struct evbuffer_cb_info *info, void *arg) {
+    UNUSED(info);
     struct evhttp_request *req = arg;
     struct evbuffer *buf = evhttp_request_get_output_buffer(req);
     ipc_resp_t *r;
