@@ -15,7 +15,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -pedantic")
 if(DEBUG)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -Werror")
 else(DEBUG)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Os -flto")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 -flto")
 endif(DEBUG)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")

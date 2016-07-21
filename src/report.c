@@ -99,6 +99,26 @@ void report_send(void) {
     udp_send(p_buf, report_length());
 }
 
+void report_secure(uint8_t *mac, uint8_t *data, uint_fast8_t payload_len) {
+  report_clear();
+  report_header(REPORT_VERSION_0, REPORT_PACKET_TYPE_SECURE);
+  if (report_free_bytes() < payload_len + 6) {
+        p_buf = realloc(p_buf, p_buf_size + payload_len + 6);
+        memset(p_buf + p_buf_size, 0, payload_len + 6);
+        p_buf_size += payload_len + 6;
+    }
+    uint8_t *p, *q;
+    q = p = p_buf + p_buf_pos;
+    memcpy(p, mac, 6);
+    p += 6;
+    memcpy(p, data, payload_len);
+    p += payload_len;
+    p_buf_pos += p - q;
+    report_send();
+    log_debug("Secure Report sent.\n");
+    return;
+}
+
 void *report_beacon(void *a, void *unused) {
     UNUSED(unused);
     /* Appends a beacon report to udp_packet buffer returning size,

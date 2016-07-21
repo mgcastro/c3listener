@@ -26,7 +26,8 @@ uint_fast16_t ipc_get_serial(void) {
 }
 
 void ipc_cmd_restart(void) {
-    ipc_cmd_t cmd = {0};
+    ipc_cmd_t cmd;
+    memset(&cmd, 0, sizeof(ipc_cmd_t));
     cmd.cmd = IPC_CMD_RESTART;
     bufferevent_write(ipc_bev, &cmd, sizeof(ipc_cmd_t));
     return;
