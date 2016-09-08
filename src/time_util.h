@@ -1,8 +1,8 @@
 #pragma once
 
 #include <stdint.h>
-#include <time.h>
 #include <sys/time.h>
+#include <time.h>
 
 double timespec_to_seconds(const struct timespec);
 double time_now(void);

@@ -3,9 +3,9 @@
 #include <math.h>
 #include <poll.h>
 #include <signal.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdbool.h>
 #include <stdlib.h>
 #include <sys/ioctl.h>
 #include <time.h>
@@ -50,8 +50,8 @@ int ble_init(int dev_id) {
     uint8_t own_type = 0x00;
     uint8_t scan_type = 0x01;
     uint8_t filter_policy = 0x00;
-    uint16_t interval = htobs(0x00F0);
-    uint16_t window = htobs(0x00F0);
+    uint16_t interval = htobs(0x0064);
+    uint16_t window = htobs(0x0064);
 
     if (dev_id < 0) {
         log_warn("Bluetooth interface invalid or not specified, trying first "
@@ -117,105 +117,119 @@ int ble_init(int dev_id) {
 
 void ble_readcb(struct bufferevent *bev, void *ptr) {
     UNUSED(ptr);
-
     uint8_t buf[HCI_MAX_EVENT_SIZE], *p = buf + 1 + HCI_EVENT_HDR_SIZE;
     int n;
-    //double ts = time_now();
+    double ts = time_now();
 
     struct evbuffer *input = bufferevent_get_input(bev);
     while ((n = evbuffer_remove(input, buf, sizeof(buf))) > 0) {
-      if (p[0] != 0x02) {
-	log_error(_("Failed to set HCI Socket Filter"));
-	exit(1);
-      }
+        if (p[0] != 0x02) {
+            log_error(_("Failed to set HCI Socket Filter"));
+            exit(1);
+        }
 
         uint_fast8_t num_reports = p[1];
-	uint8_t *data = NULL, *rssi_base = NULL;
+        uint8_t *data = NULL, *rssi_base = NULL;
         for (uint_fast8_t i = 0; i < num_reports; i++) {
-	    uint8_t *base = p+2,
-	      evt_type = *(base+i),
-	      addr_type = *(base+num_reports+i),
-	      *addr = base+num_reports+num_reports+(i*6),
-	      len = *(base+num_reports+num_reports+(num_reports*6)+i);
-	    if (evt_type != 3 || addr_type != 1 || len < 18 || len > 23) {
-	      /* Secure beacon packets have these characteristics, skip others */
-	      continue;
-	    }
-	    if (data == NULL) {
-	      data = base+num_reports+num_reports+(num_reports*6)+num_reports;
-	      rssi_base = data;
-	      for (int i = 0; i < num_reports; i++) {
-		rssi_base += *(base+num_reports+num_reports+(num_reports*6)+i);
-	      }
-	    } else {
-	      data += len;
-	    }
-	    log_notice("HCI Num Report: %d/%d", i+1, num_reports);
-	    log_notice("HCI Event Type: %d", evt_type);
-	    log_notice("HCI Addr Type: %d", addr_type);
-	    log_notice("MAC: %s", hexlify(addr, 6));
-	    log_notice("Len: %d\n", len);
-	    log_notice("Packet: %s", hexlify(data, len));
-	    
+            uint8_t *base = p + 2, evt_type = *(base + i),
+                    addr_type = *(base + num_reports + i),
+                    *addr = base + num_reports + num_reports + (i * 6),
+                    len = *(base + num_reports + num_reports +
+                            (num_reports * 6) + i);
+            if (evt_type != 3 || addr_type != 1 || len < 29 || len > 30) {
+                /* Secure beacon packets have these characteristics, skip others
+                 */
+                // log_notice("Skipped packet from: %s", hexlify(addr, 6));
+                continue;
+            }
+            if (data == NULL) {
+                data = base + num_reports + num_reports + (num_reports * 6) +
+                       num_reports;
+                rssi_base = data;
+                for (int i = 0; i < num_reports; i++) {
+                    rssi_base += *(base + num_reports + num_reports +
+                                   (num_reports * 6) + i);
+                }
+            } else {
+                data += len;
+            }
+            log_notice("HCI Num Report: %d/%d", i + 1, num_reports);
+            log_notice("HCI Event Type: %d", evt_type);
+            log_notice("HCI Addr Type: %d", addr_type);
+            log_notice("MAC: %s", hexlify(addr, 6));
+            log_notice("Len: %d\n", len);
+            log_notice("Packet: %s", hexlify(data, len));
+
             /* Parse data from HCI Event Report */
-            int_fast8_t rssi = (int8_t)*(rssi_base + i);
-	    log_notice("RSSI: %d\n", rssi);
-	    /* uint8_t full_nonce[16] = {0}; */
-	    /* memcpy(full_nonce, addr, 6); */
-	    /* memcpy(full_nonce+6, data+2, 10);  */
-	    /* log_notice("Nonce: %s\n", hexlify(full_nonce, 16)); */
-	    /* log_notice("EID/MAC: %s\n", hexlify(addr, 6)); */
-	    /* log_notice("Payload: %s\n", hexlify(data+10, len-16)); */
-	    /* log_notice("Tag: %s\n\n", hexlify(data+len-6, 4)); */
-	    report_secure(addr, data, len);
-            /* uint8_t *uuid = info->data + 9; */
-            /* int8_t tx_power = info->data[29]; */
-            /* uint16_t major = info->data[25] << 8 | info->data[26]; */
-            /* uint16_t minor = info->data[27] << 8 | info->data[28]; */
+            int8_t raw_rssi = (int8_t) * (rssi_base + i);
+            log_notice("RSSI: %d\n", raw_rssi);
+            int8_t tx_power;
+            beacon_t *b;
+            if (len == 30) {
+                /* Secure packet */
+                log_notice("Secure Beacon");
+                b = sbeacon_find_or_add(addr);
+                tx_power = data[30];
+            } else {
+                uint8_t *uuid = data + 9;
+                tx_power = data[29];
+                uint16_t major = data[25] << 8 | data[26];
+                uint16_t minor = data[27] << 8 | data[28];
 
-            /* /\* Lookup beacon *\/ */
-            /* beacon_t *b = beacon_find_or_add(uuid, major, minor); */
+                /* Lookup beacon */
+                b = ibeacon_find_or_add(uuid, major, minor);
+            }
+            /* Derive / Correct Values */
+            int8_t cor_rssi = raw_rssi + config_get_antenna_correction();
+            double flt_rssi = kalman(b, cor_rssi, ts);
 
-            /* /\* Derive / Correct Values *\/ */
-            /* int8_t cor_rssi = raw_rssi + config_get_antenna_correction(); */
-            /* double flt_rssi = kalman(b, cor_rssi, ts); */
+            /* Filter Distance Data */
+            double flt_dist =
+                pow(10, (tx_power - flt_rssi) / (10 * config_get_path_loss()));
 
-            /* /\* Filter Distance Data *\/ */
-            /* double flt_dist = */
-            /*     pow(10, (tx_power - flt_rssi) / (10 * config_get_path_loss())); */
+            /* Correct for HAAB truncating data below 0m */
+            b->distance = sqrt(pow(flt_dist, 2) - pow(config_get_haab(), 2));
+            if (isnan(b->distance)) {
+                b->distance = 0;
+            }
 
-            /* /\* Correct for HAAB truncating data below 0m *\/ */
-            /* b->distance = sqrt(pow(flt_dist, 2) - pow(config_get_haab(), 2)); */
-            /* if (isnan(b->distance)) { */
-            /*     b->distance = 0; */
-            /* } */
+            b->tx_power = (b->count * b->tx_power + tx_power) / (b->count + 1);
+            b->count++;
 
-            /* b->tx_power = (b->count * b->tx_power + tx_power) / (b->count + 1); */
-            /* b->count++; */
+            /* Convert variance to meters from RSSI units linearize near
+               current estimate */
+            double stddev =
+                sqrt(b->kalman.P[0][0]); /* Std. dev in RSSI units */
 
-            /* /\* Convert variance to meters from RSSI units linearize near */
-            /*    current estimate *\/ */
-            /* double stddev = */
-            /*     sqrt(b->kalman.P[0][0]); /\* Std. dev in RSSI units *\/ */
-
-            /* double min_dist = pow(10, (tx_power - (flt_rssi - stddev)) / */
-            /*                               (10 * config_get_path_loss())); */
-            /* double max_dist = pow(10, (tx_power - (flt_rssi + stddev)) / */
-            /*                               (10 * config_get_path_loss())); */
-            /* b->variance = */
-            /*     (pow(max_dist - flt_dist, 2) + pow(min_dist - flt_dist, 2)) / 2; */
-            /* 	 double raw_dist = */
-            /* 	   pow(10, */
-            /* 	       ((tx_power - cor_rssi) / (10 *
-             * config_get_path_loss()))); */
-            /* 	 log_debug("\ */
-            /* min: %d, raw/ant_corr/flt/tx_power: %d/%d/%.2f/%d, raw/flt/haab:
-             * %.2f/%.2f/%.2f, var: %.2f, error: %.2fm\n", */
-            /* 		   minor, */
-            /* 		   raw_rssi, cor_rssi, flt_rssi, b->tx_power, */
-            /* 		   raw_dist, flt_dist, b->distance, */
-            /* 		   b->variance, sqrt(b->variance)); */
+            double min_dist = pow(10, (tx_power - (flt_rssi - stddev)) /
+                                          (10 * config_get_path_loss()));
+            double max_dist = pow(10, (tx_power - (flt_rssi + stddev)) /
+                                          (10 * config_get_path_loss()));
+            b->variance =
+                (pow(max_dist - flt_dist, 2) + pow(min_dist - flt_dist, 2)) / 2;
+            double raw_dist = pow(
+                10, ((tx_power - cor_rssi) / (10 * config_get_path_loss())));
+            if (b->type == BEACON_IBEACON) {
+                struct ibeacon_id *id = b->id;
+                log_debug("min: %d, raw/ant_corr/flt/tx_power: %d/%d/%.2f/%d, "
+                          "raw/flt/haab: %.2f/%.2f/%.2f, var: %.2f, error: "
+                          "%.2fm\n",
+                          id->minor, raw_rssi, cor_rssi, flt_rssi, b->tx_power,
+                          raw_dist, flt_dist, b->distance, b->variance,
+                          sqrt(b->variance));
+            } else if (b->type == BEACON_SECURE) {
+                struct sbeacon_id *id = b->id;
+                uint8_t mac[7] = {0};
+                memcpy(mac, id->mac, 6);
+                log_debug(
+                    "mac: %s, raw/ant_corr/flt/tx_power: %d/%d/%.2f/%d, "
+                    "raw/flt/haab: %.2f/%.2f/%.2f, var: %.2f, error: %.2fm\n",
+                    mac, raw_rssi, cor_rssi, flt_rssi, b->tx_power, raw_dist,
+                    flt_dist, b->distance, b->variance, sqrt(b->variance));
+                report_secure(b, data, len);
+            } else {
+                log_warn("Unknown packet");
+            }
         }
     }
 }
-

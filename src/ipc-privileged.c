@@ -12,28 +12,30 @@
 #include <json-c/json.h>
 
 #include "config.h"
-#include "ipc.h"
 #include "ipc-privileged.h"
+#include "ipc.h"
 #include "log.h"
 
 void ipc_parent_readcb(struct bufferevent *bev, void *ctx) {
     UNUSED(ctx);
     log_notice("Parent notified of bufferevent\n");
-    struct evbuffer *in_buf = bufferevent_get_input(bev);
-    while (evbuffer_get_length(in_buf) > 0) {
-        ipc_cmd_t *c = ipc_cmd_fetch_alloc(bev);
-        char *output = ipc_cmd_str(c);
-        log_notice("Parent RX: %s", output);
-        free(output);
+    struct evbuffer *input = bufferevent_get_input(bev);
+    while (evbuffer_get_length(input) >= sizeof(ipc_cmd_list_t)) {
+        ipc_cmd_list_t *l = ipc_cmd_list_recover(input);
+        for (size_t i = 0; i < l->num; l++) {
+            char *output = ipc_cmd_str(l->entries[i]);
+            log_notice("Parent RX: %s", output);
+            free(output);
+        }
         ipc_resp_t *r = ipc_resp_alloc();
-        r->serial = c->serial;
+        r->serial = l->serial;
         r->success = true;
-        r->resp_l = 5;
-        r->resp = calloc(1, strlen("{}") + 1);
-        strcpy(r->resp, "{}");
+        r->resp_l = strlen("{}");
+        r->resp = calloc(1, r->resp_l);
+        memcpy(r->resp, "{}", r->resp_l);
         ipc_resp_send(bev, r);
         ipc_resp_free(r);
-        ipc_cmd_free(c);
+        ipc_cmd_list_free(l);
     }
 }
 

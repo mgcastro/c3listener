@@ -17,7 +17,7 @@ static int hash_index(void *obj, index_cb index) {
     return index(obj) % HASH_TABLE_LENGTH;
 }
 
-void hash_delete(void *obj, index_cb index, equal_p equal) {
+void hash_delete(void *obj, index_cb index, equal_p equal, delete_cb delete) {
     hashable_t *v = hash_find(obj, index, equal);
     if (v != NULL) {
         if (v->prev == NULL) {
@@ -40,7 +40,7 @@ void hash_delete(void *obj, index_cb index, equal_p equal) {
             }
         }
         /* Make sure v points to the removed node */
-        free(v);
+        delete (v);
     }
 }
 
@@ -64,6 +64,7 @@ void *hash_add(void *obj, index_cb index, equal_p equal) {
         /* obj or collision exists */
         do {
             v_last = v;
+            log_notice("Alive");
             if (obj == v || equal(obj, v)) {
                 /* A match */
                 /* log_debug("Hit\n"); */

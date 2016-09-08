@@ -9,9 +9,9 @@
 
 #include <arpa/inet.h>
 
-#include <event2/event.h>
 #include <event2/buffer.h>
 #include <event2/bufferevent.h>
+#include <event2/event.h>
 
 #include "beacon.h"
 #include "config.h"
@@ -38,7 +38,7 @@ void report_cb(int a, short b, void *self) {
 
     report_clear();
     report_header(REPORT_VERSION_0, REPORT_PACKET_TYPE_DATA);
-    func[cb_idx] = report_beacon;
+    func[cb_idx] = report_ibeacon;
     args[cb_idx++] = NULL;
 
     hash_walk(func, args, cb_idx);
@@ -99,36 +99,46 @@ void report_send(void) {
     udp_send(p_buf, report_length());
 }
 
-void report_secure(uint8_t *mac, uint8_t *data, uint_fast8_t payload_len) {
-  report_clear();
-  report_header(REPORT_VERSION_0, REPORT_PACKET_TYPE_SECURE);
-  if (report_free_bytes() < payload_len + 6) {
+void report_secure(beacon_t *b, uint8_t *data, uint_fast8_t payload_len) {
+    struct sbeacon_id *id = b->id;
+    report_clear();
+    report_header(REPORT_VERSION_0, REPORT_PACKET_TYPE_SECURE);
+    if (report_free_bytes() < payload_len + 6) {
         p_buf = realloc(p_buf, p_buf_size + payload_len + 6);
         memset(p_buf + p_buf_size, 0, payload_len + 6);
         p_buf_size += payload_len + 6;
     }
     uint8_t *p, *q;
     q = p = p_buf + p_buf_pos;
-    memcpy(p, mac, 6);
+    memcpy(p, id->mac, 6);
     p += 6;
-    memcpy(p, data, payload_len);
-    p += payload_len;
+    /* Strip TX_POWER, it's not needed at the server */
+    memcpy(p, data, payload_len - 1);
+    p += payload_len - 1;
+    uint16_t dist = round(b->distance * 100);
+    *(p++) = (uint8_t)(dist);
+    *(p++) = (uint8_t)(dist >> 8);
+    uint16_t variance = round(b->variance * 100);
+    *(p++) = (uint8_t)(variance);
+    *(p++) = (uint8_t)(variance >> 8);
     p_buf_pos += p - q;
     report_send();
     log_debug("Secure Report sent.\n");
     return;
 }
 
-void *report_beacon(void *a, void *unused) {
+void *report_ibeacon(void *a, void *unused) {
     UNUSED(unused);
     /* Appends a beacon report to udp_packet buffer returning size,
        funny args and return are to comply with walker_cb ABI */
     beacon_t *b = a;
-    log_notice("Report walking %d\n", b->minor);
-    if (!b->count) {
+    if (!b->count || !(b->type == BEACON_IBEACON)) {
         /* If there are no new adverts, skip report */
+        a = beacon_expire(a, NULL);
         return a;
     }
+    struct ibeacon_id *id = b->id;
+    log_notice("Report walking %d\n", id->minor);
     if (report_free_bytes() < BEACON_REPORT_SIZE) {
         p_buf = realloc(p_buf, p_buf_size + BEACON_REPORT_SIZE);
         memset(p_buf + p_buf_size, 0, BEACON_REPORT_SIZE);
@@ -136,12 +146,12 @@ void *report_beacon(void *a, void *unused) {
     }
     uint8_t *p, *q;
     q = p = p_buf + p_buf_pos;
-    memcpy(p, b->uuid, 16);
+    memcpy(p, id->uuid, 16);
     p += 16;
-    *(p++) = (uint8_t)(b->major >> 8);
-    *(p++) = (uint8_t)(b->major);
-    *(p++) = (uint8_t)(b->minor >> 8);
-    *(p++) = (uint8_t)(b->minor);
+    *(p++) = (uint8_t)(id->major >> 8);
+    *(p++) = (uint8_t)(id->major);
+    *(p++) = (uint8_t)(id->minor >> 8);
+    *(p++) = (uint8_t)(id->minor);
     *(p++) = (uint8_t)(b->count >> 8);
     *(p++) = (uint8_t)(b->count);
     uint16_t dist = round(b->distance * 100);

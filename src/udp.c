@@ -1,22 +1,22 @@
 #include <arpa/inet.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <sys/types.h>
 #include <netdb.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 
 #include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #include <event2/buffer.h>
 #include <event2/bufferevent.h>
 
-#include "config.h"
 #include "c3listener.h"
+#include "config.h"
 #include "log.h"
 
 static int fd;

@@ -14,11 +14,12 @@ typedef struct generic_hashtable_obj {
 } hashable_t;
 
 typedef bool (*equal_p)(void *a, void *b);
-typedef int (*index_cb)(void *);
+typedef uint32_t (*index_cb)(void *);
 typedef void *(*walker_cb)(void *, void *);
 typedef bool (*cond_p)(void *);
+typedef void (*delete_cb)(void *);
 
-void hash_delete(void *, index_cb, equal_p);
+void hash_delete(void *, index_cb, equal_p, delete_cb);
 void *hash_find(void *, index_cb, equal_p);
 void *hash_add(void *, index_cb, equal_p);
 void hash_walk(walker_cb *, void **, size_t);

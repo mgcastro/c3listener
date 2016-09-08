@@ -8,7 +8,7 @@ else ()
   set (CMAKE_C_STANDARD 99)
 endif ()
 
-option(DEBUG "Enable debug and disable optimization" OFF)
+option(DEBUG "Enable debug and disable optimization" ON)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -pedantic")
 

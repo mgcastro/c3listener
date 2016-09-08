@@ -1,17 +1,20 @@
+#include <fcntl.h>
 #include <pwd.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <signal.h>
 #include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <syslog.h>
 #include <time.h>
 #include <unistd.h>
-#include <signal.h>
-#include <syslog.h>
-#include <sys/socket.h>
 
-#include <string.h>
-#include <errno.h>
 #include <assert.h>
+#include <errno.h>
+#include <string.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -24,11 +27,11 @@
 #include "ble.h"
 #include "config.h"
 #include "http.h"
+#include "ipc-privileged.h"
+#include "ipc.h"
 #include "log.h"
 #include "report.h"
 #include "udp.h"
-#include "ipc.h"
-#include "ipc-privileged.h"
 
 #define EVLOOP_NO_EXIT_ON_EMPTY 0x04
 
@@ -112,14 +115,14 @@ void do_parent(void) {
     signal(SIGINT, sigint_handler);
     signal(SIGTERM, sigint_handler);
     signal(SIGHUP, sigint_handler);
+    signal(SIGSEGV, sigint_handler);
     int status;
 
     close(ipc_sock_pair[1]);
-    ipc_bev =
-        bufferevent_socket_new(base, ipc_sock_pair[0], BEV_OPT_DEFER_CALLBACKS);
+    ipc_bev = bufferevent_socket_new(base, ipc_sock_pair[0], 0);
     evutil_make_socket_nonblocking(ipc_sock_pair[0]);
     bufferevent_setcb(ipc_bev, ipc_parent_readcb, NULL, NULL, NULL);
-    bufferevent_enable(ipc_bev, EV_READ | EV_WRITE);
+    bufferevent_enable(ipc_bev, EV_READ);
 
     event_base_dispatch(base);
 
@@ -154,7 +157,7 @@ void do_child(void) {
     ipc_bev = bufferevent_socket_new(base, ipc_sock_pair[1], 0);
     evutil_make_socket_nonblocking(ipc_sock_pair[1]);
     bufferevent_setcb(ipc_bev, ipc_child_readcb, NULL, NULL, NULL);
-    bufferevent_enable(ipc_bev, EV_READ | EV_WRITE);
+    bufferevent_enable(ipc_bev, EV_READ);
 
     const char *user = config_get_user();
     struct passwd *pw = getpwnam(user);

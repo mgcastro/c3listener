@@ -11,11 +11,11 @@ enum report_packet_types {
 };
 
 void report_cb(int, short int, void *);
-void *report_beacon(void *a, void *b);
+void *report_ibeacon(void *a, void *b);
 void report_clear(void);
 void report_send(void);
 int report_header_length(void);
 int report_length(void);
 void report_header(int, int);
 void report_init(struct bufferevent *);
-void report_secure(uint8_t *, uint8_t *, uint_fast8_t);
+void report_secure(beacon_t *, uint8_t *, uint_fast8_t);

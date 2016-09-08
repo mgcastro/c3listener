@@ -1,12 +1,12 @@
+#include <errno.h>
 #include <fcntl.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/queue.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <errno.h>
 
 #include <event2/buffer.h>
 #include <event2/bufferevent.h>
@@ -29,8 +29,8 @@
 magic_t magic = NULL;
 #endif /* HAVE_LIBMAGIC */
 
-#include "log.h"
 #include "config.h"
+#include "log.h"
 
 struct mime_type {
     const char *ext;
@@ -102,11 +102,18 @@ static void network_json(struct evhttp_request *req, void *arg) {
 
 static void *beacon_hash_walker(void *ptr, void *jobj) {
     beacon_t *b = ptr;
-    log_notice("\tWalked: %d\n", b->minor);
-
     json_object *b_jobj = json_object_new_object();
-    json_object_object_add(b_jobj, "major", json_object_new_int(b->major));
-    json_object_object_add(b_jobj, "minor", json_object_new_int(b->minor));
+    json_object_object_add(b_jobj, "type", json_object_new_int(b->type));
+    if (b->type == BEACON_IBEACON) {
+        struct ibeacon_id *id = b->id;
+        json_object_object_add(b_jobj, "major", json_object_new_int(id->major));
+        json_object_object_add(b_jobj, "minor", json_object_new_int(id->minor));
+    } else if (b->type == BEACON_SECURE) {
+        struct sbeacon_id *id = b->id;
+        char mac[7] = {0};
+        memcpy(mac, id->mac, 6);
+        json_object_object_add(b_jobj, "mac", json_object_new_string(mac));
+    }
     json_object_object_add(b_jobj, "distance",
                            json_object_new_double(b->distance));
     json_object_object_add(b_jobj, "error",
@@ -168,7 +175,6 @@ static const char *mime_guess(const char *fname) {
 
 static void http_post_cb(struct evhttp_request *req, void *arg) {
     UNUSED(arg);
-    ipc_resp_t *r = NULL;
     const char *uri = evhttp_request_get_uri(req);
     log_notice("Got a POST request for <%s>\n", uri);
 
@@ -209,23 +215,26 @@ static void http_post_cb(struct evhttp_request *req, void *arg) {
     struct evkeyvalq params;
     evhttp_parse_query_str(cbuf, &params);
 
+    /* Build a command list from the request parameters */
     struct evkeyval *kv;
+    ipc_cmd_list_t *cmd_list = calloc(1, sizeof(cmd_list));
     TAILQ_FOREACH(kv, &params, next) {
-        r = ipc_cmd_set(kv->key, kv->value);
-        if (!r->success) {
-            goto err;
-        }
-        ipc_resp_free(r);
+        cmd_list->num++;
     }
-    evhttp_send_reply(req, 200, "OK", buf);
-    goto done;
+    cmd_list->serial = ipc_get_serial();
+    cmd_list->entries = calloc(cmd_list->num, sizeof(ipc_cmd_t *));
+    size_t count = 0;
+    TAILQ_FOREACH(kv, &params, next) {
+        cmd_list->entries[count] = ipc_cmd_set(kv->key, kv->value);
+        count++;
+    }
 
+    ipc_cmd_list_send(ipc_bev, cmd_list);
+    ipc_cmd_list_free(cmd_list);
+
+    evhttp_send_reply(req, 200, "OK", buf);
 err:
-    if (r && r->resp && r->resp_l > 0) {
-        evhttp_send_error(req, HTTP_BADREQUEST, r->resp);
-    } else {
-        evhttp_send_error(req, HTTP_BADREQUEST, "Balls");
-    }
+    evhttp_send_error(req, 500, "Boo");
 done:
     evhttp_clear_headers(&params);
     if (decoded) {
@@ -298,10 +307,10 @@ void http_main_cb(struct evhttp_request *req, void *arg) {
         log_notice("Cannot find %s\n");
         goto err;
     } else {
-      if (S_ISDIR(st.st_mode)) {
-	  log_notice("%s is a directory\n", docroot);
-	  goto err;
-      }
+        if (S_ISDIR(st.st_mode)) {
+            log_notice("%s is a directory\n", docroot);
+            goto err;
+        }
     }
 
     /* Provide ETag and Not Modified */
