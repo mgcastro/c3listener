@@ -53,11 +53,14 @@ static ble_report_t *ble_get_report(uint8_t const *const buf,
    error*/
 {
     ble_report_t *rpt = NULL;
-    uint8_t const *p = buf + idx;
+    uint8_t const *p = buf + 2 + idx;
     if (!(rpt = calloc(1, sizeof(ble_report_t)))) {
         log_error("Failed to allocate memory");
         return NULL;
     }
+    /* Archane pointer arithmatic. Bluetooth HCI requires brain
+       damage; what possible reason could there be for interleaving
+       the reports */
     rpt->evt_type = *p;
     p += hdr->num_reports;
     rpt->addr_type = *p;
@@ -172,22 +175,27 @@ void ble_readcb(struct bufferevent *bev, void *ptr) {
             bufferevent_setwatermark(bev, EV_READ, hdr_buf.param_len + 2, 0);
             return;
         }
+
         /* The data has arrived, reset watermark in preparation
            for the next packet */
         bufferevent_setwatermark(bev, EV_READ, sizeof(ble_report_hdr_t), 0);
-        evbuffer_drain(input, sizeof(ble_report_hdr_t));
+        /* Drain the bytes not included in param_len field, that makes
+           it simpler to resolve rssi later on (without magic
+           numbers) */
+        evbuffer_drain(input, offsetof(ble_report_hdr_t, param_len) + 1);
         uint8_t *body_buf = NULL;
-        if (!(body_buf = calloc(1, hdr_buf.param_len - 2))) {
-            evbuffer_drain(input, hdr_buf.param_len - 2);
+        if (!(body_buf = calloc(1, hdr_buf.param_len))) {
+            evbuffer_drain(input, hdr_buf.param_len);
             log_error("Dropped ble report due to OOM");
             return;
         }
-        if (evbuffer_remove(input, body_buf, hdr_buf.param_len - 2) < 0) {
+        if (evbuffer_remove(input, body_buf, hdr_buf.param_len) < 0) {
             log_error("Failed to read evbuffer, ble report dropped");
+            evbuffer_drain(input, hdr_buf.param_len);
             free(body_buf);
             return;
         }
-        log_notice("In CB");
+
         for (uint8_t i = 0; i < hdr_buf.num_reports; i++) {
             ble_report_t *rpt = ble_get_report(body_buf, &hdr_buf, i);
 
