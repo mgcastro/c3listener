@@ -156,7 +156,7 @@ void do_child(void) {
 
     /* Setup Web Server, pre-fork to get low port */
     struct evhttp *http = evhttp_new(c_base);
-    if (evhttp_bind_socket(http, "127.0.0.1", 80) < 0) {
+    if (evhttp_bind_socket(http, NULL, 80) < 0) {
         log_error("Could not bind http socket.");
     }
 

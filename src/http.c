@@ -342,7 +342,7 @@ static void http_post_cb(struct evhttp_request *req, void *arg) {
     char *cbuf = calloc(1, req_len + 1);
     if (!cbuf) {
         log_error("Failed to allocate memory");
-	evhttp_send_error(req, 429, "Try again later");
+        evhttp_send_error(req, 429, "Try again later");
         goto done;
     }
     if (evbuffer_remove(req->input_buffer, cbuf, req_len) < 0) {
@@ -362,8 +362,8 @@ static void http_post_cb(struct evhttp_request *req, void *arg) {
     struct evkeyval *kv;
     ipc_cmd_list_t *cmd_list = NULL;
     if (!(cmd_list = calloc(1, sizeof(ipc_cmd_list_t)))) {
-	log_error("Failed to allocate memory");
-	evhttp_send_error(req, 429, "Try again later");
+        log_error("Failed to allocate memory");
+        evhttp_send_error(req, 429, "Try again later");
         goto done;
     }
     char const *cmd = NULL;
@@ -384,9 +384,9 @@ static void http_post_cb(struct evhttp_request *req, void *arg) {
     }
     cmd_list->serial = ipc_get_serial();
     if (!(cmd_list->entries = calloc(cmd_list->num, sizeof(ipc_cmd_t *)))) {
-	ipc_cmd_list_free(cmd_list);
+        ipc_cmd_list_free(cmd_list);
         evhttp_clear_headers(&params);
-	evhttp_send_error(req, 429, "Try again later");
+        evhttp_send_error(req, 429, "Try again later");
         goto done;
     }
     size_t count = 0;
@@ -397,12 +397,12 @@ static void http_post_cb(struct evhttp_request *req, void *arg) {
         if (!evutil_ascii_strcasecmp(cmd, "reset")) {
             cmd_list->entries[count] = ipc_cmd_restart();
         } else {
-            if(!(cmd_list->entries[count] = ipc_cmd_set(cmd, kv->value))) {
-		ipc_cmd_list_free(cmd_list);
-		evhttp_clear_headers(&params);
-		evhttp_send_error(req, 429, "Try again later");
-		goto done;
-	    }
+            if (!(cmd_list->entries[count] = ipc_cmd_set(cmd, kv->value))) {
+                ipc_cmd_list_free(cmd_list);
+                evhttp_clear_headers(&params);
+                evhttp_send_error(req, 429, "Try again later");
+                goto done;
+            }
         }
         count++;
     }
@@ -448,10 +448,7 @@ void http_main_cb(struct evhttp_request *req, void *arg) {
     }
 
     if (!(path = evhttp_uri_get_path(decoded))) {
-	if (!(path = strdup("/"))) {
-	    log_error("Failed to allocated memory");
-	    goto done;
-	}
+        path = "/";
     }
 
     /* Check for a custom handler for this path, call the handler on
@@ -470,15 +467,15 @@ void http_main_cb(struct evhttp_request *req, void *arg) {
     if (!strncmp(decoded_path, "/", 2)) {
         if (asprintf(&decoded_path, "/index.html") < 0) {
             log_error("Failed to allocate memory");
-	    evhttp_send_error(req, 429, "Try again later");
-	    goto done;
+            evhttp_send_error(req, 429, "Try again later");
+            goto done;
         }
     }
 
     if (asprintf(&whole_path, "%s%s", docroot, decoded_path) < 0) {
-	log_error("Failed to allocate memory");
-	evhttp_send_error(req, 429, "Try again later");
-	goto done;
+        log_error("Failed to allocate memory");
+        evhttp_send_error(req, 429, "Try again later");
+        goto done;
     }
     struct stat st;
     if (stat(whole_path, &st) < 0) {

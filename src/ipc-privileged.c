@@ -52,21 +52,21 @@ void ipc_parent_readcb(struct bufferevent *bev, void *ctx) {
     struct evbuffer *input = bufferevent_get_input(bev);
     while (evbuffer_get_length(input) >= sizeof(ipc_cmd_list_t)) {
         ipc_cmd_list_t *l = &ipc_cmd_list_buf;
-	if (evbuffer_copyout(input, l, sizeof(ipc_cmd_list_t)) < 0) {
-	    log_error("Failed to read evbuffer");
-	    return;
-	}
-	ipc_resp_t *r = &ipc_resp_buf;
-	memset(r, 0, sizeof(ipc_resp_buf));
+        if (evbuffer_copyout(input, l, sizeof(ipc_cmd_list_t)) < 0) {
+            log_error("Failed to read evbuffer");
+            return;
+        }
+        ipc_resp_t *r = &ipc_resp_buf;
+        memset(r, 0, sizeof(ipc_resp_buf));
         r->serial = l->serial;
-	r->status = IPC_ERROR; /* This default saves typing below */
+        r->status = IPC_ERROR; /* This default saves typing below */
 
-	if (!(l = ipc_cmd_list_recover(input))) {
-	    log_error("Failed to allocate memory");
-	    r->status = IPC_ABORT;
-	    ipc_resp_send(bev, r);
-	    return;
-	}
+        if (!(l = ipc_cmd_list_recover(input))) {
+            log_error("Failed to allocate memory");
+            r->status = IPC_ABORT;
+            ipc_resp_send(bev, r);
+            return;
+        }
 
         for (size_t i = 0; i < l->num; i++) {
             int cmd = l->entries[i]->cmd;
@@ -90,76 +90,76 @@ void ipc_parent_readcb(struct bufferevent *bev, void *ctx) {
                user */
             switch (rv) {
             case IPC_REBOOT_FAILED:
-		r->code = 503;
+                r->code = 503;
                 if (asprintf(&r->resp, "Failed to restart listener\n") < 0) {
-		    r->status = IPC_ABORT;
-		}
+                    r->status = IPC_ABORT;
+                }
                 break;
             case IPC_UNKNOWN_CMD:
-		r->code = 503;
+                r->code = 503;
                 if (asprintf(&r->resp, "Unknown IPC Command %d\n", cmd)) {
-		    r->status = IPC_ABORT;
-		}
+                    r->status = IPC_ABORT;
+                }
                 break;
             case CONFIG_OK:
-		r->code = 200;
+                r->code = 200;
                 r->status = IPC_SUCCESS;
                 asprintf(&r->resp, "Ok");
-		config_local_write();
+                config_local_write();
                 break;
             case CONFIG_NOT_FOUND:
             case CONFIG_UCI_NOT_FOUND:
             case CONFIG_CONF_NOT_FOUND:
             case CONFIG_UCI_NO_SECTION:
             case CONFIG_UCI_LOOKUP_FAIL:
-		r->code = 400;
-                if (asprintf(&r->resp,
-			    "Unable to set unknown parameter: %s.",
-			     key) < 0) {
-		    r->status = IPC_ABORT;
-		    log_error("Unable to allocate memory");
-		}
+                r->code = 400;
+                if (asprintf(&r->resp, "Unable to set unknown parameter: %s.",
+                             key) < 0) {
+                    r->status = IPC_ABORT;
+                    log_error("Unable to allocate memory");
+                }
                 break;
             case CONFIG_UCI_LOOKUP_INCOMPLETE:
-		r->code = 503;
-                if (asprintf(&r->resp,
-			     "Error looking up %s via uci.", key) < 0) {
-		    log_error("Unable to allocate memory");
-		    r->status = IPC_ABORT;
-		}
+                r->code = 503;
+                if (asprintf(&r->resp, "Error looking up %s via uci.", key) <
+                    0) {
+                    log_error("Unable to allocate memory");
+                    r->status = IPC_ABORT;
+                }
                 break;
             case CONFIG_UCI_SET_FAIL:
             case CONFIG_UCI_SAVE_FAIL:
-		r->code = 503;
+                r->code = 503;
                 if (sprintf(r->resp, "Error saving %s via uci.", key) < 0) {
-		    log_error("Unable to allocate memory");
-		    r->status = IPC_ABORT;
-		}
+                    log_error("Unable to allocate memory");
+                    r->status = IPC_ABORT;
+                }
                 break;
             case CONFIG_CONF_TYPE_MISMATCH:
             case CONFIG_CONF_UNSUPPORTED_TYPE:
-		r->code = 503;
-                if (asprintf(&r->resp,
-			     "Type error in config for setting %s.", key) < 0) {
-		    log_error("Unable to allocate memory");
-		    r->status = IPC_ABORT;
-		}
+                r->code = 503;
+                if (asprintf(&r->resp, "Type error in config for setting %s.",
+                             key) < 0) {
+                    log_error("Unable to allocate memory");
+                    r->status = IPC_ABORT;
+                }
                 break;
             case CONFIG_CONF_EINVAL:
-		r->code = 400;
-                if (asprintf(&r->resp,
+                r->code = 400;
+                if (asprintf(
+                        &r->resp,
                         "Cannot coerce %s into proper type for persistence.",
-			     key) < 0) {
-		    log_error("Unable to allocate memory");
-		    r->status = IPC_ABORT;
-		}
+                        key) < 0) {
+                    log_error("Unable to allocate memory");
+                    r->status = IPC_ABORT;
+                }
                 break;
             default:
-		r->code = 503;
+                r->code = 503;
                 if (asprintf(&r->resp, "Unknown error saving %s.", key) < 0) {
-		    log_error("Unable to allocate memory");
-		    r->status = IPC_ABORT;
-		}
+                    log_error("Unable to allocate memory");
+                    r->status = IPC_ABORT;
+                }
                 break;
             }
             r->resp_l = strlen(r->resp) + 1;
@@ -171,9 +171,9 @@ void ipc_parent_readcb(struct bufferevent *bev, void *ctx) {
         }
         ipc_resp_send(bev, r);
         ipc_cmd_list_free(l);
-	if (r->resp) {
-	    free(r->resp);
-	}
+        if (r->resp) {
+            free(r->resp);
+        }
     }
 }
 
