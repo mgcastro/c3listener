@@ -55,7 +55,8 @@ bool beacon_eq(void *a, void *b) {
     }
 }
 
-beacon_t *ibeacon_find_or_add(uint8_t *uuid, uint16_t major, uint16_t minor) {
+beacon_t *ibeacon_find_or_add(uint8_t const *const uuid, uint16_t major,
+                              uint16_t minor) {
     beacon_t *b = malloc(sizeof(beacon_t)), *ret;
     memset(b, 0, sizeof(beacon_t));
     b->type = BEACON_IBEACON;

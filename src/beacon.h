@@ -29,7 +29,7 @@ typedef struct ibeacon {
 
 uint32_t beacon_index(void *);
 bool beacon_eq(void *, void *);
-beacon_t *ibeacon_find_or_add(uint8_t *, uint16_t, uint16_t);
+beacon_t *ibeacon_find_or_add(uint8_t const *const, uint16_t, uint16_t);
 beacon_t *sbeacon_find_or_add(uint8_t *);
 void *beacon_expire(void *, void *);
 void beacon_delete(void *);

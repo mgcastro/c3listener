@@ -194,6 +194,7 @@ void do_child(void) {
     struct bufferevent *ble_bev = bufferevent_socket_new(c_base, dd, 0);
     bufferevent_setcb(ble_bev, ble_readcb, NULL, NULL, NULL);
     bufferevent_enable(ble_bev, EV_READ);
+    bufferevent_setwatermark(ble_bev, EV_READ, sizeof(ble_report_hdr_t), 0);
 
     /* Setup a bufferevent to write to and ack the server */
     int fd = udp_init(config_get_remote_hostname(), config_get_remote_port());

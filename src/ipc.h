@@ -46,6 +46,7 @@ typedef struct ipc_cmd {
 
 typedef struct ipc_cmd_list {
     uint32_t serial;
+    size_t size;
     size_t num;
     ipc_cmd_t **entries;
 } ipc_cmd_list_t;

@@ -9,6 +9,7 @@
 
 #include <event2/buffer.h>
 #include <event2/bufferevent.h>
+#include <event2/event.h>
 
 #include <json-c/json.h>
 
@@ -50,17 +51,36 @@ static int ipc_priv_set(char *key, char *val) {
 void ipc_parent_readcb(struct bufferevent *bev, void *ctx) {
     UNUSED(ctx);
     struct evbuffer *input = bufferevent_get_input(bev);
+    /* If we haven't rx'd at least the dehydrated structure, skip and
+       try again later */
     while (evbuffer_get_length(input) >= sizeof(ipc_cmd_list_t)) {
         ipc_cmd_list_t *l = &ipc_cmd_list_buf;
-        if (evbuffer_copyout(input, l, sizeof(ipc_cmd_list_t)) < 0) {
+        /* Copy out the structure, but don't remove it */
+        int cmd_list_bytes_copied = -1;
+        if ((cmd_list_bytes_copied =
+                 evbuffer_copyout(input, l, sizeof(ipc_cmd_list_t))) < 0) {
             log_error("Failed to read evbuffer");
             return;
         }
+        /* Once we have the cmd_list serial, we can abort if we are
+           OOM without any allocations */
         ipc_resp_t *r = &ipc_resp_buf;
         memset(r, 0, sizeof(ipc_resp_buf));
         r->serial = l->serial;
         r->status = IPC_ERROR; /* This default saves typing below */
 
+        /* If we don't have the whole serialized structure, try again
+           later when the data's arrived */
+        if ((evbuffer_get_length(input) < l->size)) {
+            bufferevent_setwatermark(bev, EV_READ, l->size, 0);
+            return;
+        } else {
+            /* Reset the threshold once data's arrived */
+            bufferevent_setwatermark(bev, EV_READ, sizeof(ipc_cmd_list_t), 0);
+        }
+        /* By this point we're convinced that we have the complete
+           serialized structure. Deserialize it and remove it from the
+           evbuffer */
         if (!(l = ipc_cmd_list_recover(input))) {
             log_error("Failed to allocate memory");
             r->status = IPC_ABORT;
@@ -162,12 +182,12 @@ void ipc_parent_readcb(struct bufferevent *bev, void *ctx) {
                 }
                 break;
             }
-            r->resp_l = strlen(r->resp) + 1;
-            if (r->status != IPC_SUCCESS) {
-                /* Stop processing on error so the first error makes
-                   it back */
-                break;
-            }
+            r->resp_l = (r->resp) ? strlen(r->resp) + 1 : 0;
+        }
+        if (r->status != IPC_SUCCESS) {
+            /* Stop processing on error so the first error makes
+               it back */
+            break;
         }
         ipc_resp_send(bev, r);
         ipc_cmd_list_free(l);

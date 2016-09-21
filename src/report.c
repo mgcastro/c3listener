@@ -97,7 +97,8 @@ void report_send(void) {
     bufferevent_write(udp_bev, p_buf, report_length());
 }
 
-void report_secure(beacon_t *b, uint8_t *data, size_t payload_len) {
+void report_secure(beacon_t const *const b, uint8_t const *const data,
+                   size_t payload_len) {
     struct sbeacon_id *id = b->id;
     report_clear();
     report_header(REPORT_VERSION_0, REPORT_PACKET_TYPE_SECURE);

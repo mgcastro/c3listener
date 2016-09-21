@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <math.h>
@@ -17,8 +18,10 @@
 
 #include <event2/buffer.h>
 #include <event2/bufferevent.h>
+#include <event2/event.h>
 
 #include "beacon.h"
+#include "ble.h"
 #include "config.h"
 #include "hash.h"
 #include "kalman.h"
@@ -41,6 +44,39 @@ char *hexlify(const uint8_t *src, size_t n) {
         sprintf(buf + (i * 2), "%.2x", src[i]);
     }
     return buf;
+}
+
+static ble_report_t *ble_get_report(uint8_t const *const buf,
+                                    ble_report_hdr_t const *const hdr,
+                                    uint8_t idx)
+/* Deinterlace raw hci_evt buffer into structured reports or NULL on
+   error*/
+{
+    ble_report_t *rpt = NULL;
+    uint8_t const *p = buf + idx;
+    if (!(rpt = calloc(1, sizeof(ble_report_t)))) {
+        log_error("Failed to allocate memory");
+        return NULL;
+    }
+    rpt->evt_type = *p;
+    p += hdr->num_reports;
+    rpt->addr_type = *p;
+    p += hdr->num_reports - idx + (idx * 6);
+    memcpy(rpt->addr, p, 6);
+    /* Move pointer to Length_Data[0] */
+    p += (hdr->num_reports - idx) * 6;
+    for (uint8_t i = 0, offset = 0; i < hdr->num_reports; i++) {
+        if (i == idx) {
+            rpt->data_len = *(p + i);
+            /* Point p at the offset of this report's data */
+            p += offset + hdr->num_reports;
+            break;
+        }
+        offset += *(p + i);
+    }
+    rpt->data = p;
+    rpt->rssi = (int8_t) * (buf + hdr->param_len - hdr->num_reports + idx);
+    return rpt;
 }
 
 int ble_init(int dev_id) {
@@ -116,70 +152,77 @@ int ble_init(int dev_id) {
 
 void ble_readcb(struct bufferevent *bev, void *ptr) {
     UNUSED(ptr);
-    uint8_t buf[HCI_MAX_EVENT_SIZE], *p = buf + 1 + HCI_EVENT_HDR_SIZE;
-    int n;
+    int n = -1;
     double ts = time_now();
+    ble_report_hdr_t hdr_buf;
 
     struct evbuffer *input = bufferevent_get_input(bev);
-    while ((n = evbuffer_remove(input, buf, sizeof(buf))) > 0) {
-        if (p[0] != 0x02) {
-            log_error(_("Failed to set HCI Socket Filter"));
-            exit(1);
+    while (evbuffer_get_length(input) >= sizeof(ble_report_hdr_t)) {
+        if ((n = evbuffer_copyout(input, &hdr_buf, sizeof(ble_report_hdr_t))) <
+            0) {
+            log_error("Failed to read from evbuffer");
+            return;
         }
 
-        uint_fast8_t num_reports = p[1];
-        uint8_t *data = NULL, *rssi_base = NULL;
-        for (uint_fast8_t i = 0; i < num_reports; i++) {
-            uint8_t *base = p + 2, evt_type = *(base + i),
-                    addr_type = *(base + num_reports + i),
-                    *addr = base + num_reports + num_reports + (i * 6),
-                    len = *(base + num_reports + num_reports +
-                            (num_reports * 6) + i);
-            if (evt_type != 3 || addr_type != 1 || len < 29 || len > 30) {
-                /* Secure beacon packets have these characteristics, skip others
-                 */
-                // log_notice("Skipped packet from: %s", hexlify(addr, 6));
-                continue;
-            }
-            if (data == NULL) {
-                data = base + num_reports + num_reports + (num_reports * 6) +
-                       num_reports;
-                rssi_base = data;
-                for (int i = 0; i < num_reports; i++) {
-                    rssi_base += *(base + num_reports + num_reports +
-                                   (num_reports * 6) + i);
-                }
-            } else {
-                data += len;
+        /* By this point the ble_report_hdr is complete */
+        if (evbuffer_get_length(input) < (uint8_t)(hdr_buf.param_len + 2)) {
+            /* All the data hasn't arrived yet, set watermark and
+               retry later */
+            log_notice("Incomplete ble_report");
+            bufferevent_setwatermark(bev, EV_READ, hdr_buf.param_len + 2, 0);
+            return;
+        }
+        /* The data has arrived, reset watermark in preparation
+           for the next packet */
+        bufferevent_setwatermark(bev, EV_READ, sizeof(ble_report_hdr_t), 0);
+        evbuffer_drain(input, sizeof(ble_report_hdr_t));
+        uint8_t *body_buf = NULL;
+        if (!(body_buf = calloc(1, hdr_buf.param_len - 2))) {
+            evbuffer_drain(input, hdr_buf.param_len - 2);
+            log_error("Dropped ble report due to OOM");
+            return;
+        }
+        if (evbuffer_remove(input, body_buf, hdr_buf.param_len - 2) < 0) {
+            log_error("Failed to read evbuffer, ble report dropped");
+            free(body_buf);
+            return;
+        }
+        log_notice("In CB");
+        for (uint8_t i = 0; i < hdr_buf.num_reports; i++) {
+            ble_report_t *rpt = ble_get_report(body_buf, &hdr_buf, i);
+
+            if (rpt->addr_type != 1 || rpt->data_len < 29 ||
+                rpt->data_len > 30) {
+                /* Skip if this doesn't look like a report from a beacon */
+                goto skip;
             }
 #if 0
-            log_notice("HCI Num Report: %d/%d", i + 1, num_reports);
-            log_notice("HCI Event Type: %d", evt_type);
-            log_notice("HCI Addr Type: %d", addr_type);
-            log_notice("MAC: %s", hexlify(addr, 6));
-            log_notice("Len: %d\n", len);
-            log_notice("Packet: %s", hexlify(data, len));
+            log_notice("HCI Num Report: %d/%d", i + 1, hdr_buf.num_reports);
+            log_notice("HCI Event Type: %d", rpt->evt_type);
+            log_notice("HCI Addr Type: %d", rpt->addr_type);
+            log_notice("MAC: %s", hexlify(rpt->addr, 6));
+            log_notice("Len: %d\n", rpt->data_len);
+            log_notice("Packet: %s", hexlify(rpt->data, rpt->data_len));
 #endif
 
             /* Parse data from HCI Event Report */
-            int8_t raw_rssi = (int8_t) * (rssi_base + i);
             int8_t tx_power;
             beacon_t *b;
-            if (len == 30) {
+            if (rpt->data_len == 30) {
                 /* Secure packet */
-                b = sbeacon_find_or_add(addr);
-                tx_power = data[30];
+                b = sbeacon_find_or_add(rpt->addr);
+                tx_power = rpt->data[30];
             } else {
-                uint8_t *uuid = data + 9;
-                tx_power = data[29];
-                uint16_t major = data[25] << 8 | data[26];
-                uint16_t minor = data[27] << 8 | data[28];
+                uint8_t const *uuid = rpt->data + 9;
+                tx_power = rpt->data[29];
+                uint16_t major = rpt->data[25] << 8 | rpt->data[26];
+                uint16_t minor = rpt->data[27] << 8 | rpt->data[28];
 
                 /* Lookup beacon */
                 b = ibeacon_find_or_add(uuid, major, minor);
             }
             /* Derive / Correct Values */
-            int8_t cor_rssi = raw_rssi + config_get_antenna_correction();
+            int8_t cor_rssi = rpt->rssi + config_get_antenna_correction();
             double flt_rssi = kalman(b, cor_rssi, ts);
 
             /* Filter Distance Data */
@@ -216,7 +259,7 @@ void ble_readcb(struct bufferevent *bev, void *ptr) {
                 log_debug("min: %d, raw/ant_corr/flt/tx_power: %d/%d/%.2f/%d, "
                           "raw/flt/haab: %.2f/%.2f/%.2f, var: %.2f, error: "
                           "%.2fm\n",
-                          id->minor, raw_rssi, cor_rssi, flt_rssi, b->tx_power,
+                          id->minor, rpt->rssi, cor_rssi, flt_rssi, b->tx_power,
                           raw_dist, flt_dist, b->distance, b->variance,
                           sqrt(b->variance));
 #endif
@@ -227,14 +270,17 @@ void ble_readcb(struct bufferevent *bev, void *ptr) {
                 log_debug(
                     "mac: %s, raw/ant_corr/flt/tx_power: %d/%d/%.2f/%d, "
                     "raw/flt/haab: %.2f/%.2f/%.2f, var: %.2f, error: %.2fm\n",
-                    mac, raw_rssi, cor_rssi, flt_rssi, b->tx_power, raw_dist,
+                    mac, rpt->rssi, cor_rssi, flt_rssi, b->tx_power, raw_dist,
                     flt_dist, b->distance, b->variance, sqrt(b->variance));
 		free(mac);
 #endif
-                report_secure(b, data, len);
+                report_secure(b, rpt->data, rpt->data_len);
             } else {
                 log_warn("Unknown packet");
             }
+        skip:
+            free(rpt);
         }
+        free(body_buf);
     }
 }

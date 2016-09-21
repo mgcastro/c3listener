@@ -40,7 +40,7 @@
 #define DEFAULT_WEBROOT "./web"
 
 #define HTTP_TIMEOUT_SEC 1
-#define HTTP_MAX_PENDING_REQUESTS 40
+#define HTTP_MAX_PENDING_REQUESTS 1000
 
 typedef struct cli_conf {
     int_fast8_t hci_dev_id;

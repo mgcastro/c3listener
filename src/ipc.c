@@ -5,6 +5,7 @@
 
 #include <event2/buffer.h>
 #include <event2/bufferevent.h>
+#include <event2/event.h>
 #include <event2/http.h>
 
 #include <sys/queue.h>
@@ -38,7 +39,6 @@ ipc_resp_t *ipc_resp_alloc(void) {
 
 struct evbuffer *ipc_cmd_list_flatten(ipc_cmd_list_t *list) {
     struct evbuffer *buf = evbuffer_new();
-    evbuffer_add(buf, list, sizeof(ipc_cmd_list_t));
     for (size_t i = 0; i < list->num; i++) {
         struct evbuffer *j = ipc_cmd_flatten(list->entries[i]);
         if (j) {
@@ -46,6 +46,8 @@ struct evbuffer *ipc_cmd_list_flatten(ipc_cmd_list_t *list) {
             free(j);
         }
     }
+    list->size = evbuffer_get_length(buf) + sizeof(ipc_cmd_list_t);
+    evbuffer_prepend(buf, list, sizeof(ipc_cmd_list_t));
     return buf;
 }
 
@@ -187,12 +189,24 @@ void ipc_child_readcb(struct bufferevent *bev, void *ctx) {
         if (req == NULL) {
             log_error("Matching request not found for command serial %d\n",
                       ipc_resp_buf.serial);
+            /* The serial number doesn't map to an open http request,
+               this is bad. Probably means corrupted struct. We'll try
+               to recover by draining the response from the buffer
+               moving on the next one */
             evbuffer_drain(input, sizeof(ipc_resp_t) + ipc_resp_buf.resp_l);
             return;
         } else {
             if (ipc_resp_buf.status == IPC_ABORT) {
+                /* Parent ran out of memory */
                 evhttp_send_error(req, 429, "Try again later");
                 evbuffer_drain(input, sizeof(ipc_resp_t));
+                return;
+            }
+            size_t resp_len = sizeof(ipc_resp_t) + ipc_resp_buf.resp_l;
+            if (evbuffer_get_length(input) < resp_len) {
+                /* We haven't received a complete response yet,
+                   callback again when there's sufficient data */
+                bufferevent_setwatermark(bev, EV_READ, resp_len, 0);
                 return;
             }
             if (!(r = ipc_resp_fetch_alloc(bev))) {
@@ -200,6 +214,10 @@ void ipc_child_readcb(struct bufferevent *bev, void *ctx) {
                 evhttp_send_error(req, 429, "Try again later");
                 ipc_resp_free(r);
             } else {
+                /* Now that we have a complete event drained from
+                   bufferevent, reset callback threshold to the
+                   default */
+                bufferevent_setwatermark(bev, EV_READ, sizeof(ipc_resp_t), 0);
                 if (r->status == IPC_ERROR) {
                     evhttp_send_error(req, r->code, r->resp);
                 } else if (r->status == IPC_SUCCESS) {
@@ -286,8 +304,12 @@ int ipc_resp_send(struct bufferevent *bev, ipc_resp_t *r) {
     /* Sends an IPC resp as a single write to bufferevent, returns 0 on
        success, number of bytes sent on failure */
     struct evbuffer *buf = evbuffer_new();
+
+    if (r->resp_l && !r->resp) {
+        r->resp_l = 0;
+    }
     evbuffer_add(buf, r, sizeof(ipc_resp_t));
-    if (r->resp_l) {
+    if (r->resp_l && r->resp) {
         evbuffer_add(buf, r->resp, r->resp_l);
     }
     int n = bufferevent_write_buffer(bev, buf);
