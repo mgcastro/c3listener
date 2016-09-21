@@ -18,10 +18,16 @@
 #include "c3listener.h"
 #include "config.h"
 #include "log.h"
+#include "time_util.h"
 
-static int fd;
+static double udp_last_ack = 0;
+
+double udp_get_last_ack(void) {
+    return udp_last_ack;
+}
 
 int udp_init(const char *server_hostname, const char *port) {
+    int fd;
     struct addrinfo hints, *result, *rp;
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
@@ -71,32 +77,19 @@ int udp_init(const char *server_hostname, const char *port) {
             }
         }
     }
-
     freeaddrinfo(result); /* No longer needed */
     return fd;
 }
 
-int udp_send(uint8_t *data, uint8_t len) {
-    int ret = write(fd, data, len);
-    if (ret < len) {
-        if (errno == ECONNREFUSED) {
-            log_error("Packet refused at server\n");
+void udp_readcb(struct bufferevent *bev, void *c) {
+    UNUSED(c);
+    char buf[3] = {0};
+    struct evbuffer *input = bufferevent_get_input(bev);
+    while (evbuffer_get_length(input) >= 3) {
+        bufferevent_read(bev, buf, 3);
+        if (!strncmp(buf, "ACK", 3)) {
+            udp_last_ack = time_now();
         }
     }
-    /* char *buf[4] = {0}; */
-    /* ret = read(fd, buf, 3); */
-    /* if (ret > 0) { */
-    /*   log_stdout("Got data: %s\n", buf); */
-    /* } */
-    return ret;
-}
-
-void udp_cleanup(void) {
-    close(fd);
-}
-
-void udp_readcb(struct bufferevent *b, void *c) {
-    UNUSED(b);
-    UNUSED(c);
     return;
 }

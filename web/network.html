@@ -122,8 +122,8 @@
 	    <div role="tabpanel" class="tab-pane fade in" id="server">
 	    <form id="server-form">
 	      <div class="form-group">
-		<label for="host">Server Name</label>
-		<input name="host" required="true" type="text" class="form-control" id="host">
+		<label for="server">Server Name</label>
+		<input name="server" required="true" type="text" class="form-control" id="server">
 		<p class="help-block">
 		  Hostname or IP Address of the Location/Analytics Server
 		</p>
@@ -136,10 +136,10 @@
 	      </p>
 	    </div>
 	    <div class="form-group">
-	      <label for="interval">Report Interval</label>
+	      <label for="report_interval">Report Interval</label>
 	      <div class="input-group">
-		<input name="interval" min="500" max="5000" default="1000" required="true"
-		       type="number" class="form-control" id="interval">
+		<input name="report_interval" min="500" required="true"
+		       type="number" class="form-control" id="report_interval">
 		<span class="input-group-addon"
 		      id="interval-units">milliseconds</span>
 	      </div>

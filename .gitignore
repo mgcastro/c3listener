@@ -4,3 +4,4 @@ Makefile
 c3listener
 cmake_install.cmake
 install_manifest.txt
+src/*.o

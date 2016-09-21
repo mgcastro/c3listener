@@ -18,4 +18,4 @@ int report_header_length(void);
 int report_length(void);
 void report_header(int, int);
 void report_init(struct bufferevent *);
-void report_secure(beacon_t *, uint8_t *, uint_fast8_t);
+void report_secure(beacon_t *, uint8_t *, size_t);

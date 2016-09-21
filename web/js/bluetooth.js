@@ -10,6 +10,6 @@ define(["ajax","forms","util"], function (ajax, form_handler, util) {
     });
 
     /* Update the listener_id in the header */
-    util.populate_unit_id();
-    	  
+    util.populate_header();
+
 });

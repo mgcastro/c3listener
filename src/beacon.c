@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "beacon.h"
+#include "ble.h"
 #include "config.h"
 #include "hash.h"
 #include "log.h"
@@ -75,6 +76,7 @@ beacon_t *ibeacon_find_or_add(uint8_t *uuid, uint16_t major, uint16_t minor) {
     } else {
         /* Finish initialization on node, if new */
         b->last_report = NAN;
+        log_notice("Acquired ibeacon maj=%d min=%d", id->major, id->minor);
     }
     return ret;
 }
@@ -98,6 +100,9 @@ beacon_t *sbeacon_find_or_add(uint8_t *mac) {
     } else {
         /* Finish initialization on node, if new */
         b->last_report = NAN;
+        char *mac = hexlify(id->mac, 6);
+        log_notice("Acquired secure beacon id=%s", mac);
+        free(mac);
     }
     return ret;
 }

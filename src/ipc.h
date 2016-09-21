@@ -22,9 +22,16 @@
 
 */
 
+enum ipc_status_t {
+    IPC_ABORT = 0, /* Hard fail, OOM do not allocate */
+    IPC_ERROR, /* Soft-fail, allocate response string */
+    IPC_SUCCESS
+};
+
 typedef struct ipc_resp {
-    uint_fast16_t serial;
-    bool success;
+    uint32_t serial;
+    enum ipc_status_t status;
+    int code;
     size_t resp_l;
     char *resp;
 } ipc_resp_t;
@@ -38,7 +45,7 @@ typedef struct ipc_cmd {
 } ipc_cmd_t;
 
 typedef struct ipc_cmd_list {
-    uint_fast16_t serial;
+    uint32_t serial;
     size_t num;
     ipc_cmd_t **entries;
 } ipc_cmd_list_t;
@@ -59,9 +66,10 @@ ipc_resp_t *ipc_resp_alloc(void);
 void ipc_resp_free(ipc_resp_t *);
 int ipc_resp_send(struct bufferevent *, ipc_resp_t *);
 char *ipc_resp_str(ipc_resp_t *);
-uint_fast16_t ipc_get_serial(void);
+uint32_t ipc_get_serial(void);
 ipc_cmd_list_t *ipc_cmd_list_recover(struct evbuffer *);
 int ipc_cmd_list_send(struct bufferevent *bev, ipc_cmd_list_t *);
 void ipc_cmd_list_free(ipc_cmd_list_t *);
 struct evbuffer *ipc_cmd_flatten(ipc_cmd_t *);
 ipc_cmd_t *ipc_cmd_recover(struct evbuffer *);
+ipc_cmd_t *ipc_cmd_restart(void);

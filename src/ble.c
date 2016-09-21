@@ -36,8 +36,7 @@
 extern int dd;
 
 char *hexlify(const uint8_t *src, size_t n) {
-    char *buf = malloc(n * 2 + 1);
-    memset(buf, 0, n * 2 + 1);
+    char *buf = calloc(1, n * 2 + 1);
     for (size_t i = 0; i < n; i++) {
         sprintf(buf + (i * 2), "%.2x", src[i]);
     }
@@ -153,21 +152,21 @@ void ble_readcb(struct bufferevent *bev, void *ptr) {
             } else {
                 data += len;
             }
+#if 0
             log_notice("HCI Num Report: %d/%d", i + 1, num_reports);
             log_notice("HCI Event Type: %d", evt_type);
             log_notice("HCI Addr Type: %d", addr_type);
             log_notice("MAC: %s", hexlify(addr, 6));
             log_notice("Len: %d\n", len);
             log_notice("Packet: %s", hexlify(data, len));
+#endif
 
             /* Parse data from HCI Event Report */
             int8_t raw_rssi = (int8_t) * (rssi_base + i);
-            log_notice("RSSI: %d\n", raw_rssi);
             int8_t tx_power;
             beacon_t *b;
             if (len == 30) {
                 /* Secure packet */
-                log_notice("Secure Beacon");
                 b = sbeacon_find_or_add(addr);
                 tx_power = data[30];
             } else {
@@ -207,9 +206,12 @@ void ble_readcb(struct bufferevent *bev, void *ptr) {
                                           (10 * config_get_path_loss()));
             b->variance =
                 (pow(max_dist - flt_dist, 2) + pow(min_dist - flt_dist, 2)) / 2;
+#if 0
             double raw_dist = pow(
                 10, ((tx_power - cor_rssi) / (10 * config_get_path_loss())));
+#endif
             if (b->type == BEACON_IBEACON) {
+#if 0
                 struct ibeacon_id *id = b->id;
                 log_debug("min: %d, raw/ant_corr/flt/tx_power: %d/%d/%.2f/%d, "
                           "raw/flt/haab: %.2f/%.2f/%.2f, var: %.2f, error: "
@@ -217,15 +219,18 @@ void ble_readcb(struct bufferevent *bev, void *ptr) {
                           id->minor, raw_rssi, cor_rssi, flt_rssi, b->tx_power,
                           raw_dist, flt_dist, b->distance, b->variance,
                           sqrt(b->variance));
+#endif
             } else if (b->type == BEACON_SECURE) {
+#if 0
                 struct sbeacon_id *id = b->id;
-                uint8_t mac[7] = {0};
-                memcpy(mac, id->mac, 6);
+                char *mac = hexlify(id->mac, 6);
                 log_debug(
                     "mac: %s, raw/ant_corr/flt/tx_power: %d/%d/%.2f/%d, "
                     "raw/flt/haab: %.2f/%.2f/%.2f, var: %.2f, error: %.2fm\n",
                     mac, raw_rssi, cor_rssi, flt_rssi, b->tx_power, raw_dist,
                     flt_dist, b->distance, b->variance, sqrt(b->variance));
+		free(mac);
+#endif
                 report_secure(b, data, len);
             } else {
                 log_warn("Unknown packet");

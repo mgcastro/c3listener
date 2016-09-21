@@ -34,8 +34,7 @@ file(GLOB c3listener_SRC
 )
 add_definitions(-DSYSCONFDIR=\"${CMAKE_INSTALL_PREFIX}/etc\"
                 -DWEBROOT=\"${CMAKE_INSTALL_PREFIX}/share/c3listener/web\"
-		-DPACKAGE_VERSION=\"${PACKAGE_VERSION}\"
-		-D_GNU_SOURCE)
+		-DPACKAGE_VERSION=\"${PACKAGE_VERSION}\" -D_GNU_SOURCE)
 add_executable(c3listener ${c3listener_SRC})
 target_link_libraries(c3listener m ${CONFIG_LIBRARY} ${BLUEZ_LIBRARY} ${JSONC_LIBRARY} ${LIBEVENT_LIB}
 		      ${UCI_LIBRARY} ${LIBEVHTP_LIB})

@@ -27,6 +27,7 @@ static uint8_t *p_buf = NULL;
 static int p_buf_pos = 0, b_count = 0, p_buf_size = 0, hostlen = 0;
 char hostname[HOSTNAME_MAX_LEN + 1] = {0};
 static struct bufferevent *udp_bev;
+int count = 0;
 
 void report_cb(int a, short b, void *self) {
     UNUSED(a);
@@ -46,11 +47,9 @@ void report_cb(int a, short b, void *self) {
     /* If we generated a report this walk, send it */
     if (report_length() > report_header_length()) {
         report_send();
-        log_debug("Report sent.\n");
     } else {
         report_header(REPORT_VERSION_0, REPORT_PACKET_TYPE_KEEPALIVE);
         report_send();
-        log_debug("Keep alive sent.\n");
     }
 }
 
@@ -96,10 +95,9 @@ size_t report_free_bytes(void) {
 
 void report_send(void) {
     bufferevent_write(udp_bev, p_buf, report_length());
-    udp_send(p_buf, report_length());
 }
 
-void report_secure(beacon_t *b, uint8_t *data, uint_fast8_t payload_len) {
+void report_secure(beacon_t *b, uint8_t *data, size_t payload_len) {
     struct sbeacon_id *id = b->id;
     report_clear();
     report_header(REPORT_VERSION_0, REPORT_PACKET_TYPE_SECURE);
@@ -123,7 +121,6 @@ void report_secure(beacon_t *b, uint8_t *data, uint_fast8_t payload_len) {
     *(p++) = (uint8_t)(variance >> 8);
     p_buf_pos += p - q;
     report_send();
-    log_debug("Secure Report sent.\n");
     return;
 }
 
@@ -138,7 +135,6 @@ void *report_ibeacon(void *a, void *unused) {
         return a;
     }
     struct ibeacon_id *id = b->id;
-    log_notice("Report walking %d\n", id->minor);
     if (report_free_bytes() < BEACON_REPORT_SIZE) {
         p_buf = realloc(p_buf, p_buf_size + BEACON_REPORT_SIZE);
         memset(p_buf + p_buf_size, 0, BEACON_REPORT_SIZE);

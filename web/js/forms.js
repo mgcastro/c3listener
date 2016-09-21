@@ -60,7 +60,7 @@ define(["ajax", "util"], function (ajax, util) {
 	    return (prev && cur);
 	}, true);
     }
-    
+
     function register_form_validator (form_el_id, field_valid_map) {
 	var form = document.getElementById(form_el_id);
 	form.addEventListener("submit", function (evt) {
@@ -91,7 +91,7 @@ define(["ajax", "util"], function (ajax, util) {
     }
 
     var filled_values = {};
-    
+
     function validate_form (form, field_valid_map, evt) {
 	var r_list = [];
 	var els = form.getElementsByTagName('input')
@@ -138,7 +138,7 @@ define(["ajax", "util"], function (ajax, util) {
 		}
 	    }
 	}
-	
+
 	if (evt && evt.type == "submit") {
 	    /* If we're executing js, try to do nice async POSTS, w/o
 	     * js fallback to form post w/o client-side validation */
@@ -149,6 +149,7 @@ define(["ajax", "util"], function (ajax, util) {
 			var button = form.getElementsByTagName("button")[0];
 			button.textContent = "Saved";
 			button.setAttribute("disabled", "disabled");
+			util.populate_header();
 		    });
 		}
 	    }
@@ -169,10 +170,10 @@ define(["ajax", "util"], function (ajax, util) {
 	}
 	return valid;
     }
-    
+
     function fill_form (form_id, obj) {
 	var form = document.getElementById(form_id);
-	
+
 	var slice = Array.prototype.slice;
 	var inputs = slice.call(form.getElementsByTagName("input"));
 	inputs = inputs.concat(slice.call(form.getElementsByTagName("select")));

@@ -45,7 +45,6 @@ static void log_cb(int severity, const char *msg) {
 /* Config and other globals */
 int dd = 0, child_pid = 0;
 const uint8_t filter_type = 0, filter_dup = 0;
-struct event_base *base;
 
 /* Sockets linking parent and child for IPC */
 int ipc_sock_pair[2];
@@ -74,18 +73,9 @@ int main(int argc, char **argv) {
         }
     }
 
-    base = event_base_new();
-
     /* Setup BLE pre-fork, child will not have permissions */
     dd = ble_init(config_get_hci_interface());
     evutil_make_socket_nonblocking(dd);
-
-    /* Setup Web Server, pre-fork to get low port */
-    struct evhttp *http = evhttp_new(base);
-    if (evhttp_bind_socket(http, NULL, 80) < 0) {
-        log_error("Could not bind http socket.");
-    }
-    evhttp_set_gencb(http, http_main_cb, (void *)config_get_webroot());
 
     /* Setup sockets for parent/child IPC */
     errno = 0;
@@ -103,7 +93,6 @@ int main(int argc, char **argv) {
         do_parent();
     } else {
         /* We need to reinit the event_base in the child process */
-        event_reinit(base);
         do_child();
     }
     return errno;
@@ -116,17 +105,25 @@ void do_parent(void) {
     signal(SIGTERM, sigint_handler);
     signal(SIGHUP, sigint_handler);
     signal(SIGSEGV, sigint_handler);
-    int status;
+    // int status;
+
+    struct event_base *p_base = event_base_new();
 
     close(ipc_sock_pair[1]);
-    ipc_bev = bufferevent_socket_new(base, ipc_sock_pair[0], 0);
+    struct bufferevent *ipc_bev_parent =
+        bufferevent_socket_new(p_base, ipc_sock_pair[0], 0);
     evutil_make_socket_nonblocking(ipc_sock_pair[0]);
-    bufferevent_setcb(ipc_bev, ipc_parent_readcb, NULL, NULL, NULL);
-    bufferevent_enable(ipc_bev, EV_READ);
+    bufferevent_setcb(ipc_bev_parent, ipc_parent_readcb, NULL, NULL, NULL);
+    bufferevent_setwatermark(ipc_bev_parent, EV_READ, sizeof(ipc_cmd_list_t),
+                             0);
+    bufferevent_enable(ipc_bev_parent, EV_READ | EV_WRITE);
 
-    event_base_dispatch(base);
+    event_base_dispatch(p_base);
 
+#if 0
+    /* Old child cleanup code */
     while (true) {
+    	int status;
         /* Loop for child events, if the child exits; then cleanup */
         log_notice("Parent not running event loop\n");
         pid_t pid = waitpid(-1, &status, 0);
@@ -149,15 +146,29 @@ void do_parent(void) {
             raise(SIGTERM);
         }
     }
+#endif
 }
 
 void do_child(void) {
     /* In the child */
+
+    struct event_base *c_base = event_base_new();
+
+    /* Setup Web Server, pre-fork to get low port */
+    struct evhttp *http = evhttp_new(c_base);
+    if (evhttp_bind_socket(http, "127.0.0.1", 80) < 0) {
+        log_error("Could not bind http socket.");
+    }
+
+    evhttp_set_gencb(http, http_main_cb, (void *)config_get_webroot());
+    evhttp_set_timeout(http, HTTP_TIMEOUT_SEC);
+
     close(ipc_sock_pair[0]);
-    ipc_bev = bufferevent_socket_new(base, ipc_sock_pair[1], 0);
+    ipc_bev = bufferevent_socket_new(c_base, ipc_sock_pair[1], 0);
     evutil_make_socket_nonblocking(ipc_sock_pair[1]);
     bufferevent_setcb(ipc_bev, ipc_child_readcb, NULL, NULL, NULL);
-    bufferevent_enable(ipc_bev, EV_READ);
+    bufferevent_setwatermark(ipc_bev, EV_READ, sizeof(ipc_resp_t), 0);
+    bufferevent_enable(ipc_bev, EV_READ | EV_WRITE);
 
     const char *user = config_get_user();
     struct passwd *pw = getpwnam(user);
@@ -180,26 +191,26 @@ void do_child(void) {
                pw->pw_gid);
 
     /* Setup a bufferevent to process BLE scan results */
-    struct bufferevent *ble_bev = bufferevent_socket_new(base, dd, 0);
+    struct bufferevent *ble_bev = bufferevent_socket_new(c_base, dd, 0);
     bufferevent_setcb(ble_bev, ble_readcb, NULL, NULL, NULL);
     bufferevent_enable(ble_bev, EV_READ);
 
     /* Setup a bufferevent to write to and ack the server */
     int fd = udp_init(config_get_remote_hostname(), config_get_remote_port());
-    struct bufferevent *udp_bev = bufferevent_socket_new(base, fd, 0);
+    evutil_make_socket_nonblocking(fd);
+    struct bufferevent *udp_bev = bufferevent_socket_new(c_base, fd, 0);
     bufferevent_setcb(udp_bev, udp_readcb, NULL, NULL, NULL);
     bufferevent_enable(udp_bev, EV_READ | EV_WRITE);
     report_init(udp_bev);
 
     /* Setup a timer for sending report */
-    struct event *report_ev = event_new(base, -1, EV_PERSIST, report_cb, NULL);
+    struct event *report_ev =
+        event_new(c_base, -1, EV_PERSIST, report_cb, NULL);
     struct timeval report_tv = config_get_report_interval();
     evtimer_add(report_ev, &report_tv);
 
-    /* Setup a GC timer */
-
     /* Loop on established events */
-    event_base_dispatch(base);
+    event_base_dispatch(c_base);
 }
 
 void sigint_handler(int signum) {
@@ -220,7 +231,7 @@ void sigint_handler(int signum) {
     } else {
         log_notice("HCI Socket Closed\n");
     }
-    event_base_free(base);
+    sync();
     fflush(stderr);
     exit(errno);
 }

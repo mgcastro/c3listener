@@ -1,3 +1,5 @@
+#include <assert.h>
+#include <errno.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -6,10 +8,16 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 
+#include <sys/reboot.h>
+#include <unistd.h>
+#define LINUX_REBOOT_CMD_RESTART 0x1234567
+
 #include <libconfig.h>
 
 #include "config.h"
 #include "log.h"
+
+extern char hostname[HOSTNAME_MAX_LEN + 1];
 
 /* Structure for libconfig */
 static config_t cfg;
@@ -20,6 +28,28 @@ static c3_cli_config_t cli_cfg = {.hci_dev_id = -1,
                                   .config_file = NULL,
                                   .user = NULL,
                                   .webroot = NULL};
+
+typedef struct setting_typemap_t {
+    char *setting;
+    int type;
+} setting_typemap_t;
+
+static int config_local_setting_type(char const *const key)
+/* Returns CONFIG_TYPE_* for valid configuration parameters or -1 if
+ * the type is unknown */
+{
+    static setting_typemap_t const setting_types[] = {
+        {"haab", CONFIG_TYPE_FLOAT},          {"path_loss", CONFIG_TYPE_FLOAT},
+        {"host", CONFIG_TYPE_STRING},         {"port", CONFIG_TYPE_STRING},
+        {"report_interval", CONFIG_TYPE_INT}, {NULL, -1}};
+    for (setting_typemap_t const *setting = setting_types; setting->setting;
+         setting++) {
+        if (!strncmp(key, setting->setting, strlen(setting->setting))) {
+            return setting->type;
+        }
+    }
+    return -1;
+}
 
 static void config_do_cli(int argc, char **argv) {
     int c;
@@ -75,15 +105,26 @@ static void config_do_cli(int argc, char **argv) {
     return;
 }
 
+static char *config_get_filename(void) {
+    return cli_cfg.config_file ? cli_cfg.config_file : DEFAULT_CONFIG_FILE;
+}
+
 static void config_do_file(void) {
-    char *filename =
-        cli_cfg.config_file ? cli_cfg.config_file : DEFAULT_CONFIG_FILE;
+    char *filename = config_get_filename();
     if (!config_read_file(&cfg, filename)) {
         log_error("Problem with config file: %s: %s:%d - %s\n", filename,
                   config_error_file(&cfg), config_error_line(&cfg),
                   config_error_text(&cfg));
         exit(1);
     }
+}
+
+void config_refresh(void) {
+    /* Child won't see changes to parents config_t, anytime we need
+       current values we'll need to refresh the childs config_t... the
+       only way to do this is to persist the changes to disk (in
+       parent) and read in the file (in child) */
+    config_do_file();
 }
 
 void config_start(int argc, char **argv) {
@@ -122,6 +163,79 @@ const char *config_get_remote_hostname(void) {
     } else {
         return DEFAULT_REMOTE_HOSTNAME;
     }
+}
+
+int config_set(char *key, char *value) {
+    config_do_file();
+    config_setting_t *setting = config_lookup(&cfg, key);
+    int r;
+    int setting_type;
+
+    if (setting == NULL) {
+        setting_type = config_local_setting_type(key);
+        log_notice("Creating setting %s with type %d", key, setting_type);
+        if (setting_type > 0) {
+            /* Default settings are not dependant on presence in
+               config file. If the value if being changed from the
+               default, sometimes we'll need to create the setting
+               before setting it */
+            setting = config_setting_add(config_root_setting(&cfg), key,
+                                         setting_type);
+
+            if (!setting) {
+                return CONFIG_CONF_CREATE_ERROR;
+            }
+        } else {
+            return CONFIG_CONF_NOT_FOUND;
+        }
+    }
+    assert(setting);
+    setting_type = config_setting_type(setting);
+    switch (setting_type) {
+    case CONFIG_TYPE_STRING:
+        if (config_setting_set_string(setting, value) == CONFIG_TRUE) {
+            r = CONFIG_OK;
+        } else {
+            r = CONFIG_CONF_TYPE_MISMATCH;
+        }
+        break;
+    case CONFIG_TYPE_INT:
+        errno = 0;
+        int ival = strtol(value, NULL, 10);
+        if (errno) {
+            log_error("Unable to convert value %s to integer: %s\n", key,
+                      strerror(errno));
+            return CONFIG_CONF_EINVAL;
+        }
+        log_notice("config_set @ int: converted = %d", ival);
+        if (config_setting_set_int(setting, ival) == CONFIG_TRUE) {
+            r = CONFIG_OK;
+        } else {
+            r = CONFIG_CONF_TYPE_MISMATCH;
+        }
+        break;
+    case CONFIG_TYPE_FLOAT:
+        errno = 0;
+        double dval = strtod(value, NULL);
+        if (errno) {
+            log_error("Unable to convert value %s to integer: %s\n", key,
+                      strerror(errno));
+            return CONFIG_CONF_EINVAL;
+        }
+        if (config_setting_set_float(setting, dval) == CONFIG_TRUE) {
+            r = CONFIG_OK;
+        } else {
+            r = CONFIG_CONF_TYPE_MISMATCH;
+        }
+        break;
+    default:
+        r = CONFIG_CONF_UNSUPPORTED_TYPE;
+    }
+    return r;
+}
+
+void config_local_write(void) {
+    config_write_file(&cfg, config_get_filename());
 }
 
 const char *config_get_remote_port(void) {
@@ -211,4 +325,14 @@ const char *config_get_webroot(void) {
 
 void config_cleanup(void) {
     config_destroy(&cfg);
+}
+
+int config_reboot(void) {
+    sync();
+    if (!strcmp(hostname, "black.nocko.se")) {
+        return reboot(LINUX_REBOOT_CMD_RESTART);
+    } else {
+        log_warn("Prevented restart on dev machine");
+    }
+    return -1;
 }

@@ -39,6 +39,9 @@
 #define DEFAULT_USER "nobody"
 #define DEFAULT_WEBROOT "./web"
 
+#define HTTP_TIMEOUT_SEC 1
+#define HTTP_MAX_PENDING_REQUESTS 40
+
 typedef struct cli_conf {
     int_fast8_t hci_dev_id;
     bool debug;
@@ -59,3 +62,16 @@ bool config_debug(void);
 int config_get_hci_interface(void);
 void config_start(int argc, char **argv);
 const char *config_get_webroot(void);
+int config_set(char *, char *);
+int config_reboot(void);
+void config_refresh(void);
+void config_local_write(void);
+
+enum {
+    CONFIG_OK = 0,
+    CONFIG_CONF_NOT_FOUND = 128,
+    CONFIG_CONF_TYPE_MISMATCH,
+    CONFIG_CONF_EINVAL,
+    CONFIG_CONF_UNSUPPORTED_TYPE,
+    CONFIG_CONF_CREATE_ERROR
+};

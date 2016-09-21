@@ -3,9 +3,28 @@ define(["jquery","ajax"], function ($, ajax) {
 	var first = formdata.entries().next();
 	return (first['done']) && (typeof first['value'] === "undefined");
     }
-    function populate_unit_id () {
+    function populate_header () {
 	ajax.get_json('server.json').then(function (server) {
 	    document.getElementById("unit-id").textContent = server["listener_id"];
+	    if (server["reset_required"] && !document.getElementById('reset_required')) {
+		var form = document.createElement('form');
+		form.setAttribute('id','reset_required');
+		form.setAttribute('method', 'post');
+		form.classList.add('navbar-form');
+		form.classList.add('navbar-right');
+		var button = document.createElement('button');
+		button.setAttribute('type', 'submit');
+		button.classList.add('btn');
+		button.classList.add('btn-danger');
+		button.innerText = "Reboot Required - Click Here";
+		form.appendChild(button);
+		var hidden = document.createElement('input');
+		hidden.setAttribute('type', 'hidden');
+		hidden.setAttribute('name', 'reset');
+		hidden.setAttribute('value', '1');
+		form.appendChild(hidden);
+		document.getElementById('navbar').appendChild(form);
+	    }
 	});
     }
     function form_url_encode (str) {
@@ -44,7 +63,7 @@ define(["jquery","ajax"], function ($, ajax) {
     return {
 	"form_encode": form_encode,
 	"alert": util_alert,
-	"populate_unit_id": populate_unit_id,
+	"populate_header": populate_header,
 	"formdata_empty": formdata_is_empty_p,
     }
 });

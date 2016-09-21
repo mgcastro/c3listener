@@ -64,7 +64,6 @@ void *hash_add(void *obj, index_cb index, equal_p equal) {
         /* obj or collision exists */
         do {
             v_last = v;
-            log_notice("Alive");
             if (obj == v || equal(obj, v)) {
                 /* A match */
                 /* log_debug("Hit\n"); */
@@ -98,11 +97,9 @@ void hash_walk(walker_cb *walker, void **args, size_t size) {
     for (int i = 0; i < HASH_TABLE_LENGTH; i++) {
         hashable_t *v = hashtable[i];
         while (v != NULL) {
-            log_debug("Running walker on %p\n", v);
             for (size_t j = 0; j < size; j++) {
                 v = walker[j](v, args[j]);
                 if (v == NULL) {
-                    log_debug("Breaking walk due to walkercb NULL");
                     break;
                 }
             }
