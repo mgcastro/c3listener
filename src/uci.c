@@ -123,7 +123,7 @@ int uci_simple_set(char *key, char *value) {
                 return CONFIG_UCI_SET_FAIL;
             }
         }
-        if (uci_save(uci_ctx, ptr.p) != UCI_OK) {
+        if (uci_commit(uci_ctx, &ptr.p, true) != UCI_OK) {
             char *error = calloc(1, 256);
             uci_get_errorstr(uci_ctx, &error, NULL);
             log_error("Failed to save %s: %s\n", tuple, error);
