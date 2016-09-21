@@ -1,0 +1,160 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <title></title>
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="icon" href="img/favicon.ico">
+    <script data-main="js/network.js" src="js/require.min.js"></script>
+  </head>
+  <body>
+    <nav class="navbar navbar-inverse navbar-fixed-top">
+      <div class="container-fluid">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <a class="navbar-brand"
+             href="#"><img src="img/logo.png"></a>
+	  <span id="unit-id"><span>
+        </div>
+        <div id="navbar" class="navbar-collapse collapse">
+          <ul class="nav navbar-nav navbar-right">
+            <li><a href="#">Help</a></li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container-fluid">
+      <div class="row">
+        <div class="col-sm-3 col-md-2 sidebar">
+          <ul class="nav nav-sidebar">
+            <li><a href="/">Overview <span class="sr-only">(current)</span></a></li>
+            <li class="active"><a href="network.html">Network</a></li>
+            <li><a href="bluetooth.html">Bluetooth</a></li>
+          </ul>
+        </div>
+        <div id="main" class="col-sm-9 col-sm-offset-3 col-md-10 col-md-offset-2 main">
+          <h1 class="page-header">Network</h1>
+	  <nav>
+	  <ul class="nav nav-tabs nav-justified" role="tablist">
+	    <li role="presentation" class="active"><a href="#wired" aria-controls="wired" role="tab" data-toggle="tab">Wired</a></li>
+	    <li role="presentation"><a href="#wireless" aria-controls="wireless" role="tab" data-toggle="tab">Wireless</a></li>
+	    <li role="presentation"><a href="#server"
+	    aria-controls="server" role="tab" data-toggle="tab">Remote
+		Server</a></li>
+	  </ul>
+	  <div class="tab-content">
+	    <div role="tabpanel" class="tab-pane fade in active" id="wired">
+	      <form id="wired-form">
+	      <div class="form-group">
+		<label for="proto">IP Address Type</label>
+		<select name="proto" class="form-control" id="proto">
+		  <option value="dhcp">DHCP</option>
+		  <option value="static">Static</option>
+		</select>
+	      </div>
+	      <div id="static_options">
+		<div class="form-group">
+		  <label for="ipaddr">IP Address</label>
+		  <input name="ipaddr" type="text" class="form-control" id="ipaddr">
+		  <p class="help-block">
+		    IP Address of this Listener including network
+		    mask. e.g 192.168.15.7/24
+		  </p>
+		</div>
+		<div class="form-group">
+		  <label for="netmask">Network Mask</label>
+		  <input name="netmask" type="text" class="form-control" id="netmask">
+		  <p class="help-block">
+		    Netmask mask, in bits (24) or octet notation
+		    (e.g. 255.255.255.0)
+		  </p>
+		</div>
+		<div class="form-group">
+		  <label for="gateway">Gateway</label>
+		  <input name="gateway" type="text" class="form-control" id="gateway">
+		  <p class="help-block">
+		    Host by which this host may external networks (if
+		    the analytics/location server isn't on the local network.
+		  </p>
+		</div>
+	      	<div class="form-group">
+		  <label for="dns">DNS Servers</label>
+		  <input name="dns" type="text" class="form-control" id="dns">
+		  <p class="help-block">
+		    Comma separated list of hosts (ip addresses) that
+		    can recursively resolve DNS names for this listener. Maximum 3 servers.
+		  </p>
+		</div>
+	      </div>
+	      <button formaction="" disabled="disabled" formmethod="post" type="submit" class="btn btn-default">No Changes</button>
+	    </form>
+	    </div>
+	    <div role="tabpanel" class="tab-pane fade in" id="wireless">
+	    <form id="wireless-form">
+	      <div class="form-group">
+		<label for="ssid">Wireless SSID</label>
+		<input name="ssid" required="true" maxlength="32" type="text" class="form-control" id="ssid">
+		<p class="help-block">
+		  Wireless Network Name. Max. 32 Characters
+		</p>
+	      </div>
+	      <div class="form-group">
+		<label for="key">Wireless Passphrase</label>
+		<input name="key" required="true" type="password" class="form-control" id="key">
+		<p class="help-block">
+		  WPA2-PSK for this network. Min. 8 Characters, Max 63 Characters
+		</p>
+	      </div>
+	      <button formaction="" formmethod="post" type="submit" disabled="disabled" class="btn btn-default">No Changes</button>
+	    </form>
+	    </div>
+	    <div role="tabpanel" class="tab-pane fade in" id="server">
+	    <form id="server-form">
+	      <div class="form-group">
+		<label for="server">Server Name</label>
+		<input name="server" required="true" type="text" class="form-control" id="server">
+		<p class="help-block">
+		  Hostname or IP Address of the Location/Analytics Server
+		</p>
+	      </div>
+	      <div class="form-group">
+		<label for="port">Server Port</label>
+		<input name="port" min="1" max="65535" default="9999" step="1" required="true" type="number" class="form-control" id="port">
+	      <p class="help-block">
+		Port number at which to connect to the remote server.
+	      </p>
+	    </div>
+	    <div class="form-group">
+	      <label for="report_interval">Report Interval</label>
+	      <div class="input-group">
+		<input name="report_interval" min="500" required="true"
+		       type="number" class="form-control" id="report_interval">
+		<span class="input-group-addon"
+		      id="interval-units">milliseconds</span>
+	      </div>
+	      <p class="help-block">
+		How often should the listener send data to the server
+		in milliseconds. Min. 500 = every 0.5 sec., Max. 5000 = 5 sec.
+	      </p>
+	    </div>
+	      <button formaction="" disabled="disabled" formmethod="post" type="submit" class="btn btn-default">No Changes</button>
+	    </form>
+	  </div>
+        </div>
+      </div>
+    </div>
+    <script src="js/jquery.min.js"></script>
+    <script src="js/bootstrap.min.js"></script>
+  </body>
+</html>

@@ -1,0 +1,20 @@
+find_path(UCI_INCLUDE_DIR NAMES uci.h)
+find_library(UCI_LIBRARY NAMES uci)
+
+if (UCI_INCLUDE_DIR AND UCI_LIBRARY)
+    SET(UCI_FOUND TRUE)
+endif (UCI_INCLUDE_DIR AND UCI_LIBRARY)
+
+if (UCI_FOUND)
+   message(STATUS "Found libuci: ${UCI_LIBRARY}")
+else(UCI_FOUND)
+    if(UCI_FIND_REQUIRED)
+	if(not UCI_INCLUDE_DIR)
+	    message(FATAL_ERROR "Could not find LibUci header file!")
+	ENDIF(NOT UCI_INCLUDE_DIR)
+
+	if(not UCI_LIBRARY)
+	    message(FATAL_ERROR "Could not find LibUci library file!")
+	endif(not UCI_LIBRARY)
+    endif(UCI_FIND_REQUIRED)
+endif(UCI_FOUND)
