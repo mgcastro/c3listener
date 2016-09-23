@@ -8,9 +8,7 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 
-#include <sys/reboot.h>
 #include <unistd.h>
-#define LINUX_REBOOT_CMD_RESTART 0x1234567
 
 #include <libconfig.h>
 
@@ -325,12 +323,6 @@ const char *config_get_webroot(void) {
 
 void config_cleanup(void) {
     config_destroy(&cfg);
-}
-
-int config_reboot(void) {
-    sync();
-    reboot(LINUX_REBOOT_CMD_RESTART);
-    return -1;
 }
 
 char *config_get_local_hostname(void) {

@@ -113,40 +113,12 @@ void do_parent(void) {
     struct bufferevent *ipc_bev_parent =
         bufferevent_socket_new(p_base, ipc_sock_pair[0], 0);
     evutil_make_socket_nonblocking(ipc_sock_pair[0]);
-    bufferevent_setcb(ipc_bev_parent, ipc_parent_readcb, NULL, NULL, NULL);
+    bufferevent_setcb(ipc_bev_parent, ipc_parent_readcb, NULL, NULL, p_base);
     bufferevent_setwatermark(ipc_bev_parent, EV_READ, sizeof(ipc_cmd_list_t),
                              0);
     bufferevent_enable(ipc_bev_parent, EV_READ | EV_WRITE);
 
     event_base_dispatch(p_base);
-
-#if 0
-    /* Old child cleanup code */
-    while (true) {
-    	int status;
-        /* Loop for child events, if the child exits; then cleanup */
-        log_notice("Parent not running event loop\n");
-        pid_t pid = waitpid(-1, &status, 0);
-        /* If the parent was signaled, the signal handler will never
-           give back control. So we should only reach this code if the
-           child exits or receives a signal */
-        if (WIFSIGNALED(status) || WIFEXITED(status)) {
-            /* A child has ended */
-            if (WIFSIGNALED(status)) {
-                log_notice("Child %d exited by signal: %s", pid,
-                           strsignal(WTERMSIG(status)));
-            } else {
-                log_notice("Child %d exited status: %s\n", pid,
-                           strerror(errno));
-            }
-            /* Clear child_pid so the signal handler doesn't try to kill
-               it again */
-            child_pid = 0;
-            /* Kill the gibson */
-            raise(SIGTERM);
-        }
-    }
-#endif
 }
 
 void do_child(void) {

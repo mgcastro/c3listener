@@ -25,7 +25,8 @@
 enum ipc_status_t {
     IPC_ABORT = 0, /* Hard fail, OOM do not allocate */
     IPC_ERROR,     /* Soft-fail, allocate response string */
-    IPC_SUCCESS
+    IPC_SUCCESS,
+    IPC_REBOOTING,
 };
 
 typedef struct ipc_resp {

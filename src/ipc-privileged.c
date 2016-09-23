@@ -4,8 +4,11 @@
  *   parent process
  */
 
+#include <linux/reboot.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/reboot.h>
+#include <unistd.h>
 
 #include <event2/buffer.h>
 #include <event2/bufferevent.h>
@@ -48,8 +51,17 @@ static int ipc_priv_set(char *key, char *val) {
     return rv;
 }
 
+void ipc_reboot(int unused, short unused2, void *arg) {
+    UNUSED(unused);
+    UNUSED(unused2);
+    UNUSED(arg);
+    sync();
+    reboot(LINUX_REBOOT_CMD_RESTART);
+    return;
+}
+
 void ipc_parent_readcb(struct bufferevent *bev, void *ctx) {
-    UNUSED(ctx);
+    struct event_base *base = ctx;
     struct evbuffer *input = bufferevent_get_input(bev);
     /* If we haven't rx'd at least the dehydrated structure, skip and
        try again later */
@@ -98,9 +110,10 @@ void ipc_parent_readcb(struct bufferevent *bev, void *ctx) {
                 rv = ipc_priv_set(key, val);
                 break;
             case IPC_CMD_RESTART:
-                config_reboot();
-                /* Function should not return */
-                rv = IPC_REBOOT_FAILED;
+                /* Five seconds */
+                evtimer_add(evtimer_new(base, ipc_reboot, NULL),
+                            &((struct timeval){5, 0}));
+                rv = IPC_REBOOTING;
                 break;
             default:
                 rv = IPC_UNKNOWN_CMD;
@@ -109,9 +122,10 @@ void ipc_parent_readcb(struct bufferevent *bev, void *ctx) {
             /* Log errors and generate responses for child process /
                user */
             switch (rv) {
-            case IPC_REBOOT_FAILED:
-                r->code = 503;
-                if (asprintf(&r->resp, "Failed to restart listener\n") < 0) {
+            case IPC_REBOOTING:
+                r->code = 200;
+                r->status = IPC_SUCCESS;
+                if (asprintf(&r->resp, "Restarting Listener\n") < 0) {
                     r->status = IPC_ABORT;
                 }
                 break;

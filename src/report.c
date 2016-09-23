@@ -37,7 +37,7 @@ static void report_add_header(struct evbuffer *buf, enum report_version version,
 static void report_send(struct evbuffer *buf) {
     struct bufferevent *udp_bev = NULL;
     if ((udp_bev = udp_get_bev())) {
-	bufferevent_write_buffer(udp_bev, buf);
+        bufferevent_write_buffer(udp_bev, buf);
     }
 }
 

@@ -12,8 +12,10 @@ define(["jquery","ajax"], function ($, ajax) {
 		form.setAttribute('method', 'post');
 		form.classList.add('navbar-form');
 		form.classList.add('navbar-right');
+		form.addEventListener('submit', reset_submit);
 		var button = document.createElement('button');
 		button.setAttribute('type', 'submit');
+		button.setAttribute('id', 'reset_button');
 		button.classList.add('btn');
 		button.classList.add('btn-danger');
 		button.innerText = "Reboot Required - Click Here";
@@ -60,10 +62,35 @@ define(["jquery","ajax"], function ($, ajax) {
 	    $(alert_div).slideUp("slow");
 	}, 5000);
     }
+    function reset_submit (evt) {
+	evt.preventDefault();
+	var data = new FormData(document.getElementById('reset_required'));
+	ajax.post("", form_encode(data)).then(function(resp) {
+	    window.setTimeout(reset_wait, 5000);
+	    document.getElementById('reset_button').innerText = "Rebooting";
+	});
+    }
+    function reset_wait (count) {
+	if (!count) {
+	    count += 1;
+	}
+	ajax.get_json('server.json').then(
+	    function success() {
+		document.location = '/';
+	    }, function fail() {
+		window.setTimeout(reset_wait, 1000);
+	    });
+	var btn_txt = "Rebooting";
+	for (var i = 0; i < count % 4; i++) {
+	    btn_txt += '.';
+	}
+	document.getElementById('reset_button').innerText = btn_txt
+    }
     return {
 	"form_encode": form_encode,
 	"alert": util_alert,
 	"populate_header": populate_header,
 	"formdata_empty": formdata_is_empty_p,
+	"reset_wait": reset_wait
     }
 });
