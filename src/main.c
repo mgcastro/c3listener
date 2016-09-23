@@ -197,12 +197,7 @@ void do_child(void) {
     bufferevent_setwatermark(ble_bev, EV_READ, sizeof(ble_report_hdr_t), 0);
 
     /* Setup a bufferevent to write to and ack the server */
-    int fd = udp_init(config_get_remote_hostname(), config_get_remote_port());
-    evutil_make_socket_nonblocking(fd);
-    struct bufferevent *udp_bev = bufferevent_socket_new(c_base, fd, 0);
-    bufferevent_setcb(udp_bev, udp_readcb, NULL, NULL, NULL);
-    bufferevent_enable(udp_bev, EV_READ | EV_WRITE);
-    report_init(udp_bev);
+    udp_init(-1, 0, c_base);
 
     /* Setup a timer for sending report */
     struct event *report_ev =

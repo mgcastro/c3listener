@@ -60,9 +60,6 @@ struct mime_type {
 
 typedef void (*url_cb)(struct evhttp_request *, void *);
 
-/* Exported from the report module */
-extern char hostname[HOSTNAME_MAX_LEN + 1];
-
 /* Exported from ipc.c; ipc points to the correct end of a
    bufferevent_pair in the parent and child */
 extern struct bufferevent *ipc_bev;
@@ -137,7 +134,7 @@ static void server_json(struct evhttp_request *req, void *arg) {
     config_refresh();
     json_object *jobj = json_object_new_object();
     json_object_object_add(jobj, "listener_id",
-                           json_object_new_string(hostname));
+                           json_object_new_string(config_get_local_hostname()));
     json_object_object_add(jobj, "last_seen",
                            json_object_new_string("Not implemented"));
     json_object_object_add(

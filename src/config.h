@@ -39,6 +39,8 @@
 #define DEFAULT_USER "nobody"
 #define DEFAULT_WEBROOT "./web"
 
+#define SERVER_RECONNECT_INTERVAL_SEC 10
+
 #define HTTP_TIMEOUT_SEC 1
 #define HTTP_MAX_PENDING_REQUESTS 1000
 
@@ -66,6 +68,7 @@ int config_set(char *, char *);
 int config_reboot(void);
 void config_refresh(void);
 void config_local_write(void);
+char *config_get_local_hostname(void);
 
 enum {
     CONFIG_OK = 0,

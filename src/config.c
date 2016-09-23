@@ -332,3 +332,12 @@ int config_reboot(void) {
     reboot(LINUX_REBOOT_CMD_RESTART);
     return -1;
 }
+
+char *config_get_local_hostname(void) {
+    static char *hostname = NULL;
+    if (!hostname) {
+        hostname = calloc(1, 256);
+        gethostname(hostname, 255);
+    }
+    return hostname;
+}

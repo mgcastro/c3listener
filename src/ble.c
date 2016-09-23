@@ -198,9 +198,9 @@ void ble_readcb(struct bufferevent *bev, void *ptr) {
 
         for (uint8_t i = 0; i < hdr_buf.num_reports; i++) {
             ble_report_t *rpt = NULL;
-	    if (!(rpt = ble_get_report(body_buf, &hdr_buf, i))) {
-		continue;
-	    }
+            if (!(rpt = ble_get_report(body_buf, &hdr_buf, i))) {
+                continue;
+            }
 
             if (rpt->addr_type != 1 || rpt->data_len < 29 ||
                 rpt->data_len > 30) {
