@@ -35,8 +35,10 @@ static void report_add_header(struct evbuffer *buf, enum report_version version,
 }
 
 static void report_send(struct evbuffer *buf) {
-    struct bufferevent *udp_bev = udp_get_bev();
-    bufferevent_write_buffer(udp_bev, buf);
+    struct bufferevent *udp_bev = NULL;
+    if ((udp_bev = udp_get_bev())) {
+	bufferevent_write_buffer(udp_bev, buf);
+    }
 }
 
 void report_cb(int a, short b, void *self) {
@@ -79,10 +81,8 @@ void report_secure(beacon_t const *const b, uint8_t const *const data,
     evbuffer_add(buf, data, payload_len - 1);
     uint16_t dist = round(b->distance * 100);
     uint16_t variance = round(b->variance * 100);
-    const uint8_t rearr_buf[] = {(dist & 0xff),
-				 (dist >> 8),
-                                 (variance & 0xff),
-				 (variance >> 8)};
+    const uint8_t rearr_buf[] = {(dist & 0xff), (dist >> 8), (variance & 0xff),
+                                 (variance >> 8)};
     evbuffer_add(buf, rearr_buf, sizeof(rearr_buf));
     report_send(buf);
     evbuffer_free(buf);
@@ -107,11 +107,10 @@ void *report_ibeacon(void *a, void *v) {
     uint16_t dist = round(b->distance * 100);
     uint16_t variance = round(b->variance * 100);
     /* Little endian, for reasons? */
-    uint8_t tmp[] = {(id->major & 0xff), (id->major >> 8),
-                     (id->minor & 0xff), (id->minor >> 8),
-		     (b->count & 0xff), (b->count >> 8),
-                     (dist & 0xff), (dist >> 8),
-                     (variance >> 8), (variance & 0xff)};
+    uint8_t tmp[] = {(id->major & 0xff), (id->major >> 8),  (id->minor & 0xff),
+                     (id->minor >> 8),   (b->count & 0xff), (b->count >> 8),
+                     (dist & 0xff),      (dist >> 8),       (variance >> 8),
+                     (variance & 0xff)};
     evbuffer_add(buf, tmp, sizeof(tmp));
     /* Reset beacon packet counter as it counts *unreported*
        packets */

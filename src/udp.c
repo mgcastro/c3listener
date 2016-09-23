@@ -51,11 +51,10 @@ void udp_readcb(struct bufferevent *bev, void *c) {
         bufferevent_read(bev, buf, 3);
         if (!strncmp(buf, "ACK", 3)) {
             udp_last_ack = time_now();
-	    if (!connection_valid) {
-		connection_valid = true;
-		log_notice("Connected to %s",
-			   config_get_remote_hostname());
-	    }
+            if (!connection_valid) {
+                connection_valid = true;
+                log_notice("Connected to %s", config_get_remote_hostname());
+            }
         }
     }
     return;
@@ -65,28 +64,26 @@ static void udp_retry_later(struct event_base *base) {
     static struct event *retry_timer = NULL;
     struct timeval delay_tv = {SERVER_RECONNECT_INTERVAL_SEC, 0};
     if (!retry_timer) {
-	retry_timer = evtimer_new(base, udp_init, base);
+        retry_timer = evtimer_new(base, udp_init, base);
     }
     if (!evtimer_pending(retry_timer, &delay_tv)) {
-	evtimer_add(retry_timer, &delay_tv);
+        evtimer_add(retry_timer, &delay_tv);
     }
 }
 
-void udp_eventcb(struct bufferevent *bev, short events, void *ptr)
-{
+void udp_eventcb(struct bufferevent *bev, short events, void *ptr) {
     UNUSED(bev);
     struct event_base *base = ptr;
     if (events & BEV_EVENT_ERROR) {
-	log_error("%s: %s. Retrying in %ds",
-		  config_get_remote_hostname(),
-		  strerror(errno), SERVER_RECONNECT_INTERVAL_SEC);
-	/* Don't try to write to errored out bev */
-	bufferevent_disable(bev, EV_WRITE);
-	udp_retry_later(base);
+        log_error("%s: %s. Retrying in %ds", config_get_remote_hostname(),
+                  strerror(errno), SERVER_RECONNECT_INTERVAL_SEC);
+        /* Don't try to write to errored out bev */
+        bufferevent_disable(bev, EV_WRITE);
+        udp_retry_later(base);
     } else if (events & BEV_EVENT_EOF) {
-	log_error("Bufferevent reports EOF.");
+        log_error("Bufferevent reports EOF.");
     } else if (events & BEV_EVENT_TIMEOUT) {
-	log_warn("Bufferevent reports timeout.");
+        log_warn("Bufferevent reports timeout.");
     }
 }
 
@@ -101,8 +98,8 @@ void udp_init(int unused1, short unused2, void *arg) {
 
     /* Cleanup any existing sockets / bufferevents */
     if (udp_bev) {
-	    bufferevent_free(udp_bev);
-	    udp_fd = 1;
+        bufferevent_free(udp_bev);
+        udp_fd = 1;
     }
 
     struct addrinfo hints, *result, *rp;
@@ -138,17 +135,18 @@ void udp_init(int unused1, short unused2, void *arg) {
             continue;
         }
         if (connect(udp_fd, rp->ai_addr, rp->ai_addrlen) != -1) {
-	    log_notice("Trying connection to %s", s);
-	    evutil_make_socket_nonblocking(udp_fd);
-	    udp_bev = bufferevent_socket_new(base, udp_fd, BEV_OPT_CLOSE_ON_FREE);
-	    bufferevent_setcb(udp_bev, udp_readcb, NULL, udp_eventcb, base);
-	    bufferevent_enable(udp_bev, EV_READ | EV_WRITE);
+            log_notice("Trying connection to %s", s);
+            evutil_make_socket_nonblocking(udp_fd);
+            udp_bev =
+                bufferevent_socket_new(base, udp_fd, BEV_OPT_CLOSE_ON_FREE);
+            bufferevent_setcb(udp_bev, udp_readcb, NULL, udp_eventcb, base);
+            bufferevent_enable(udp_bev, EV_READ | EV_WRITE);
             break; /* Success */
         } else {
-	    /* It's unclear if this can happen in real
-	       life... SOCK_DGRAMS don't really connect; but assuming
-	       there is a problem we'd probably want to periodically
-	       try again. */
+            /* It's unclear if this can happen in real
+               life... SOCK_DGRAMS don't really connect; but assuming
+               there is a problem we'd probably want to periodically
+               try again. */
             log_warn("Failed to connect: %s\n", strerror(errno));
             close(udp_fd);
             udp_fd = -1;
