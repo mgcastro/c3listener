@@ -143,13 +143,12 @@ void udp_init(int unused1, short unused2, void *arg) {
             bufferevent_enable(udp_bev, EV_READ | EV_WRITE);
             break; /* Success */
         } else {
-            /* It's unclear if this can happen in real
-               life... SOCK_DGRAMS don't really connect; but assuming
-               there is a problem we'd probably want to periodically
-               try again. */
+            /* This happens if we can resolve the hostname (because
+               it's an IP address) but don't have networking (yet) */
             log_warn("Failed to connect: %s\n", strerror(errno));
             close(udp_fd);
             udp_fd = -1;
+            udp_retry_later(base);
         }
     }
     free(result);

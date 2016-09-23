@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+
+set -e
+
 clang-tidy \
     -fix \
     -fix-errors \
