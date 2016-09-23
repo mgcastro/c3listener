@@ -65,15 +65,12 @@ define(["jquery","ajax"], function ($, ajax) {
     function reset_submit (evt) {
 	evt.preventDefault();
 	var data = new FormData(document.getElementById('reset_required'));
+	button_animation(0);
 	ajax.post("", form_encode(data)).then(function(resp) {
-	    button_animation();
 	    window.setTimeout(reset_wait, 5000);
 	});
     }
-    function reset_wait (count) {
-	if (!count) {
-	    count += 1;
-	}
+    function reset_wait () {
 	ajax.get_json('server.json').then(
 	    function success() {
 		document.location = '/';
@@ -81,12 +78,15 @@ define(["jquery","ajax"], function ($, ajax) {
 		window.setTimeout(reset_wait, 1000);
 	    });
     }
-    function button_animation () {
+    function button_animation (count) {
+	var btn = document.getElementById('reset_button');
 	var btn_txt = "Rebooting";
 	for (var i = 0; i < count % 4; i++) {
 	    btn_txt += '.';
 	}
-	window.setTimeout(button_animation, 1000);
+	btn.innerText = btn_txt;
+	btn.style.width = '100px';
+	window.setTimeout(button_animation, 1000, ++count);
     }
     return {
 	"form_encode": form_encode,

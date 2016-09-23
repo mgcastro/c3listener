@@ -134,3 +134,7 @@ div.alert {
     position: absolute;
     left: 35%;
 }
+
+#reset_button {
+    text-align: left;
+}
