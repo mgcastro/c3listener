@@ -49,10 +49,10 @@ bool beacon_eq(void *a, void *b) {
     } else if (aa->type == BEACON_SECURE) {
         struct sbeacon_id *id_a = aa->id, *id_b = bb->id;
         return !memcmp(id_a->mac, id_b->mac, 6);
-    } else {
-        log_error("Unknown beacon type in hash: %d", bb->type);
-        assert(false);
     }
+    log_error("Unknown beacon type in hash: %d", bb->type);
+    assert(false);
+    return false;
 }
 
 beacon_t *ibeacon_find_or_add(uint8_t const *const uuid, uint16_t major,
