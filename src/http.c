@@ -203,20 +203,23 @@ static void network_status_json(struct evhttp_request *req, void *arg) {
         } else if (!strncmp(ifa->ifa_name, "wlan", 4) ||
                    !strncmp(ifa->ifa_name, "wlp", 3)) {
             json_if = wireless;
+        } else {
+            continue;
         }
-        if (json_if) {
-            if (ifa->ifa_addr->sa_family == AF_INET) {
-                json_object_object_add(json_if, "interface",
-                                       json_object_new_string(ifa->ifa_name));
-                json_object_object_add(
-                    json_if, "ipaddr",
-                    json_object_new_string(inet_ntoa(
-                        ((struct sockaddr_in *)ifa->ifa_addr)->sin_addr)));
-                json_object_object_add(
-                    json_if, "netmask",
-                    json_object_new_string(inet_ntoa(
-                        ((struct sockaddr_in *)ifa->ifa_netmask)->sin_addr)));
+        if (ifa->ifa_addr->sa_family == AF_INET) {
+            json_object_object_add(json_if, "interface",
+                                   json_object_new_string(ifa->ifa_name));
+            char *ipaddr =
+                inet_ntoa(((struct sockaddr_in *)ifa->ifa_addr)->sin_addr);
+            if (!strcmp(ipaddr, "192.168.7.1")) {
+                continue;
             }
+            json_object_object_add(json_if, "ipaddr",
+                                   json_object_new_string(ipaddr));
+            json_object_object_add(
+                json_if, "netmask",
+                json_object_new_string(inet_ntoa(
+                    ((struct sockaddr_in *)ifa->ifa_netmask)->sin_addr)));
         }
     }
     json_object_object_add(jobj, "wired", wired);
