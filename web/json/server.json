@@ -1,9 +1,0 @@
-{
-    "host": "loc-svr1.c3wireless.com",
-    "port": 9999,
-    "interval": 500,
-    "last_seen": "Jan 1 1990",
-    "listener_id": "1a2b3c4d5e6f",
-    "path_loss": 3.2,
-    "haab": 0.5
-}

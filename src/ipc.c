@@ -149,9 +149,9 @@ ipc_resp_t *ipc_resp_fetch_alloc(struct bufferevent *bev) {
 char *ipc_resp_str(ipc_resp_t *r) {
     char *output = NULL;
     if (asprintf(&output, "%d, %s; %s\n", (int)r->serial,
-                 r->status == IPC_ABORT ? "Aborted" : r->status == IPC_ERROR
-                                                          ? "Error"
-                                                          : "Success",
+                 r->status == IPC_ABORT
+                     ? "Aborted"
+                     : r->status == IPC_ERROR ? "Error" : "Success",
                  r->resp_l ? r->resp : "NULL") < 0) {
         log_error("Failed to allocate memory");
         return NULL;
