@@ -207,7 +207,7 @@ void ble_readcb(struct bufferevent *bev, void *ptr) {
                 /* Skip if this doesn't look like a report from a beacon */
                 goto skip;
             }
-#if 0
+#if 1
             log_notice("HCI Num Report: %d/%d", i + 1, hdr_buf.num_reports);
             log_notice("HCI Event Type: %d", rpt->evt_type);
             log_notice("HCI Addr Type: %d", rpt->addr_type);
