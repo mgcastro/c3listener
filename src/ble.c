@@ -199,22 +199,29 @@ void ble_readcb(struct bufferevent *bev, void *ptr) {
         for (uint8_t i = 0; i < hdr_buf.num_reports; i++) {
             ble_report_t *rpt = NULL;
             if (!(rpt = ble_get_report(body_buf, &hdr_buf, i))) {
+		log_notice("Failed to decode report");
                 continue;
             }
 
-            if (rpt->addr_type != 1 || rpt->data_len < 29 ||
-                rpt->data_len > 30) {
-                /* Skip if this doesn't look like a report from a beacon */
-                goto skip;
-            }
-#if 1
+	    #if 1
             log_notice("HCI Num Report: %d/%d", i + 1, hdr_buf.num_reports);
             log_notice("HCI Event Type: %d", rpt->evt_type);
             log_notice("HCI Addr Type: %d", rpt->addr_type);
-            log_notice("MAC: %s", hexlify(rpt->addr, 6));
+	    char *mac_s = hexlify(rpt->addr, 6);
+            log_notice("MAC: %s", mac_s);
+	    free(mac_s);
             log_notice("Len: %d\n", rpt->data_len);
-            log_notice("Packet: %s", hexlify(rpt->data, rpt->data_len));
+	    char *pkt_s = hexlify(rpt->data, rpt->data_len);
+            log_notice("Packet: %s", pkt_s);
+	    free(pkt_s);
 #endif
+
+            if (rpt->addr_type != 1 || rpt->data_len < 29 ||
+                rpt->data_len > 30) {
+	    log_notice("Skipping non-iBeacon/Secbeacon.");
+                /* Skip if this doesn't look like a report from a beacon */
+                goto skip;
+            }
 
             /* Parse data from HCI Event Report */
             int8_t tx_power;
@@ -234,7 +241,8 @@ void ble_readcb(struct bufferevent *bev, void *ptr) {
             }
             /* Derive / Correct Values */
             int8_t cor_rssi = rpt->rssi + config_get_antenna_correction();
-            double flt_rssi = kalman(b, cor_rssi, ts);
+	    log_notice("RSSI: %d (%d), TX_Power: %d\n\n", rpt->rssi, cor_rssi, tx_power);
+	    double flt_rssi = kalman(b, cor_rssi, ts);
 
             /* Filter Distance Data */
             double flt_dist =

@@ -8,15 +8,22 @@ else ()
   set (CMAKE_C_STANDARD 99)
 endif ()
 
-option(DEBUG "Enable debug and disable optimization" ON)
+option(DEBUG "Enable debug and disable optimization" OFF)
+option(SANITIZE "Enable Address/Undefined Behaviour Sanitization" OFF)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -pedantic")
 
 if(DEBUG)
+  message(STATUS "DEBUG Build Enabled")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -Werror")
 else(DEBUG)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 -flto")
 endif(DEBUG)
+
+if(SANITIZE)
+  message(STATUS "SANITIZE Enabled")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address,undefined")
+endif(SANITIZE)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 include(GetGitRevisionDescription)
