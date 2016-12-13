@@ -124,7 +124,11 @@ void ipc_parent_readcb(struct bufferevent *bev, void *ctx) {
             case CONFIG_OK:
                 r->code = 200;
                 r->status = IPC_SUCCESS;
-                asprintf(&r->resp, "Ok");
+                if (asprintf(&r->resp, "Ok") < 0) {
+		    r->status = IPC_ABORT;
+                    log_error("Unable to allocate memory");
+		    break;
+		}
                 config_local_write();
                 break;
             case CONFIG_NOT_FOUND:
