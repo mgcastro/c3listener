@@ -86,10 +86,10 @@ int ble_init(int dev_id) {
     /* Always happens in parent running as root */
     int ctl, err, dd;
     uint8_t own_type = 0x00;
-    uint8_t scan_type = 0x00; // Passive Scan
-    uint8_t filter_policy = 0x00; // All undirected
-    uint16_t interval = htobs(0x0010); // 10ms
-    uint16_t window = htobs(0x0010); // 10ms
+    uint8_t scan_type = 0x00;          // Passive Scan
+    uint8_t filter_policy = 0x00;      // All undirected
+    uint16_t interval = htobs(0x0320); // 10ms
+    uint16_t window = htobs(0x0320);   // 10ms
 
     if (dev_id < 0) {
         log_warn("Bluetooth interface invalid or not specified, trying first "
@@ -203,10 +203,10 @@ void ble_readcb(struct bufferevent *bev, void *ptr) {
                 continue;
             }
 
-	    if (rpt->evt_type != 0x03) {
-		//log_notice("Skipping Directed or Connectable Adv");
-		continue;
-	    }
+            if (rpt->evt_type != 0x03) {
+                // log_notice("Skipping Directed or Connectable Adv");
+                continue;
+            }
 
 #if 1
             log_notice("HCI Num Report: %d/%d", i + 1, hdr_buf.num_reports);
@@ -234,20 +234,20 @@ void ble_readcb(struct bufferevent *bev, void *ptr) {
             if (rpt->data_len == 30) {
                 /* Secure packet */
                 b = sbeacon_find_or_add(rpt->addr);
-                tx_power = (int8_t) rpt->data[29];
+                tx_power = (int8_t)rpt->data[29];
             } else {
                 uint8_t const *uuid = rpt->data + 9;
-                tx_power = (int8_t) rpt->data[28];
+                tx_power = (int8_t)rpt->data[28];
                 uint16_t major = rpt->data[25] << 8 | rpt->data[26];
                 uint16_t minor = rpt->data[27] << 8 | rpt->data[28];
 
                 /* Lookup beacon */
                 b = ibeacon_find_or_add(uuid, major, minor);
             }
-	    log_notice("TX_PWR: %d", tx_power);
+            log_notice("TX_PWR: %d", tx_power);
             int8_t cor_rssi = rpt->rssi + config_get_antenna_correction();
             double flt_rssi = kalman(b, cor_rssi, ts);
-	    log_notice("RSSI: %d->%d->%f", rpt->rssi, cor_rssi, flt_rssi);
+            log_notice("RSSI: %d->%d->%f", rpt->rssi, cor_rssi, flt_rssi);
 
             /* Filter Distance Data */
             double flt_dist =
@@ -258,7 +258,7 @@ void ble_readcb(struct bufferevent *bev, void *ptr) {
             if (isnan(b->distance)) {
                 b->distance = 0;
             }
-	    log_notice("Dist: %f->%f\n\n", flt_dist, b->distance);
+            log_notice("Dist: %f->%f\n\n", flt_dist, b->distance);
 
             b->tx_power = (b->count * b->tx_power + tx_power) / (b->count + 1);
             b->count++;
