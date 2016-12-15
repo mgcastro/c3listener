@@ -205,7 +205,7 @@ void ble_readcb(struct bufferevent *bev, void *ptr) {
 
             if (rpt->evt_type != 0x03) {
                 // log_notice("Skipping Directed or Connectable Adv");
-                continue;
+                goto skip;
             }
 
 #if 1
