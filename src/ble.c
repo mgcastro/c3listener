@@ -88,8 +88,8 @@ int ble_init(int dev_id) {
     uint8_t own_type = 0x00;
     uint8_t scan_type = 0x00;          // Passive Scan
     uint8_t filter_policy = 0x00;      // All undirected
-    uint16_t interval = htobs(0x0012); // 10ms
-    uint16_t window = htobs(0x0012);   // 10ms
+    uint16_t interval = htobs(0x0320); // 10ms
+    uint16_t window = htobs(0x0320);   // 10ms
 
     if (dev_id < 0) {
         log_warn("Bluetooth interface invalid or not specified, trying first "
@@ -158,7 +158,7 @@ void ble_readcb(struct bufferevent *bev, void *ptr) {
     int n = -1;
     double ts = time_now();
     ble_report_hdr_t hdr_buf;
-
+    log_notice("In ble_readcb");
     struct evbuffer *input = bufferevent_get_input(bev);
     while (evbuffer_get_length(input) >= sizeof(ble_report_hdr_t)) {
         if ((n = evbuffer_copyout(input, &hdr_buf, sizeof(ble_report_hdr_t))) <

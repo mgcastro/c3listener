@@ -62,7 +62,7 @@ int main(int argc, char **argv) {
         event_enable_debug_mode();
     }
 
-    log_notice("Starting c3listener %s\n", PACKAGE_VERSION);
+    log_notice("Starting c3listener %s\n", VERSION);
     fflush(stdout);
 
     /* Daemonize */

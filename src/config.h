@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define VERSION "v1.3.11-b7"
+
 #define UNUSED(x) (void)(x)
 
 #define HOSTNAME_MAX_LEN 255
