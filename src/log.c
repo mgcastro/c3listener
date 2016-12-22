@@ -14,7 +14,7 @@ void log_init(void) {
     }
 }
 
-static void log_main(int pri, const char *format, void *argptr) {
+static void log_main(int pri, const char *format, va_list argptr) {
     vsyslog(pri, format, argptr);
 }
 
