@@ -17,7 +17,6 @@
 #include "ipc-privileged.h"
 #include "ipc.h"
 #include "log.h"
-#include "uci.h"
 
 enum {
     /* Other CONFIG_ enums defined in uci.h and config.h near the
@@ -27,19 +26,24 @@ enum {
     IPC_REBOOT_FAILED,
 };
 
+#ifdef HAVE_UCI
+#include "uci.h"
 const char *uci_settings[] = {"proto", "ipaddr", "netmask", "gateway",
                               "dns",   "ssid",   "key",     NULL};
+#endif /* HAVE_UCI */
 
 static ipc_resp_t ipc_resp_buf;
 static ipc_cmd_list_t ipc_cmd_list_buf;
 
 static int ipc_priv_set(char *key, char *val) {
     int rv = CONFIG_NOT_FOUND;
+#ifdef HAVE_UCI
     for (size_t j = 0; uci_settings[j] != NULL; j++) {
         if (!strncmp(key, uci_settings[j], strlen(uci_settings[j]))) {
             rv = uci_simple_set(key, val);
         }
     }
+#endif /* HAVE_UCI */
     if (rv == CONFIG_NOT_FOUND) {
         /* If it's not a recognised UCI setting, try to update a
            libconfig setting */
@@ -132,10 +136,12 @@ void ipc_parent_readcb(struct bufferevent *bev, void *ctx) {
                 config_local_write();
                 break;
             case CONFIG_NOT_FOUND:
-            case CONFIG_UCI_NOT_FOUND:
             case CONFIG_CONF_NOT_FOUND:
+#ifdef HAVE_UCI
+	    case CONFIG_UCI_NOT_FOUND:
             case CONFIG_UCI_NO_SECTION:
             case CONFIG_UCI_LOOKUP_FAIL:
+#endif /* HAVE_UCI */
                 r->code = 400;
                 if (asprintf(&r->resp, "Unable to set unknown parameter: %s.",
                              key) < 0) {
@@ -143,6 +149,7 @@ void ipc_parent_readcb(struct bufferevent *bev, void *ctx) {
                     log_error("Unable to allocate memory");
                 }
                 break;
+#ifdef HAVE_UCI
             case CONFIG_UCI_LOOKUP_INCOMPLETE:
                 r->code = 503;
                 if (asprintf(&r->resp, "Error looking up %s via uci.", key) <
@@ -159,6 +166,7 @@ void ipc_parent_readcb(struct bufferevent *bev, void *ctx) {
                     r->status = IPC_ABORT;
                 }
                 break;
+#endif /* HAVE_UCI */
             case CONFIG_CONF_TYPE_MISMATCH:
             case CONFIG_CONF_UNSUPPORTED_TYPE:
                 r->code = 503;

@@ -25,16 +25,18 @@
 
 #include <json-c/json.h>
 
-#include <uci.h>
-
 #include "beacon.h"
 #include "ble.h"
 #include "config.h"
 #include "http.h"
 #include "ipc.h"
 #include "time_util.h"
-#include "uci.h"
 #include "udp.h"
+
+#ifdef HAVE_UCI
+#include <uci.h>
+#include "uci.h"
+#endif
 
 #ifdef HAVE_LIBMAGIC
 #include <magic.h>
@@ -168,19 +170,23 @@ static void server_json(struct evhttp_request *req, void *arg) {
 
 static void network_json(struct evhttp_request *req, void *arg) {
     UNUSED(arg);
+    struct evbuffer *buf = evhttp_request_get_output_buffer(req);
+
+#ifdef HAVE_UCI
     json_object *jobj = json_object_new_object();
 
     json_object_object_add(jobj, "wired", uci_section_jobj("network.lan2"));
     json_object_object_add(jobj, "wireless",
                            uci_section_jobj("wireless.@wifi-iface[0]"));
-
-    struct evbuffer *buf = evhttp_request_get_output_buffer(req);
     const char *json = json_object_to_json_string(jobj);
     evbuffer_add(buf, json, strlen(json));
     evhttp_add_header(evhttp_request_get_output_headers(req), "Content-Type",
                       "application/json");
     evhttp_send_reply(req, 200, "OK", buf);
     json_object_put(jobj);
+#else
+    evbuffer_add_printf(buf, "{}");
+#endif /* HAVE_UCI */
 }
 
 static void network_status_json(struct evhttp_request *req, void *arg) {

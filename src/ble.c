@@ -158,7 +158,7 @@ void ble_readcb(struct bufferevent *bev, void *ptr) {
     int n = -1;
     double ts = time_now();
     ble_report_hdr_t hdr_buf;
-    log_notice("In ble_readcb");
+    //log_notice("In ble_readcb");
     struct evbuffer *input = bufferevent_get_input(bev);
     while (evbuffer_get_length(input) >= sizeof(ble_report_hdr_t)) {
         if ((n = evbuffer_copyout(input, &hdr_buf, sizeof(ble_report_hdr_t))) <
