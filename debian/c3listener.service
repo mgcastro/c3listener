@@ -1,0 +1,11 @@
+[Unit]
+Description=C3 Listener
+Requires=hostname-config.service
+After=hostname-config.service
+
+[Service]
+ExecStart=/usr/local/bin/c3listener -d
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

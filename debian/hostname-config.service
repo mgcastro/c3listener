@@ -1,0 +1,12 @@
+[Unit]
+Description=Make unique hostname for listeners
+ConditionPathExists=/root/firstboot
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c "hostname $(ip addr show dev wlan0|awk '/\link\/ether/ {print $2}'|tr -d \":\")"
+ExecStart=/bin/bash -c "echo 127.0.0.1 $(/bin/hostname) >> /etc/hosts
+ExecStart=/bin/rm /root/firstboot
+
+[Install]
+WantedBy=multi-user.target
