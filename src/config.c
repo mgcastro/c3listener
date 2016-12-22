@@ -330,9 +330,9 @@ void config_cleanup(void) {
 int config_reboot(void) {
     sync();
     if (!strcmp(hostname, "black.nocko.se")) {
-        return reboot(LINUX_REBOOT_CMD_RESTART);
-    } else {
         log_warn("Prevented restart on dev machine");
+    } else {
+        return reboot(LINUX_REBOOT_CMD_RESTART);
     }
     return -1;
 }
