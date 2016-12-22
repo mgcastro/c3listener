@@ -34,6 +34,13 @@ define(['ajax','util','forms'], function (ajax, util, form_handler) {
 	};
 	form_handler.register("wireless-form", wireless_form_map);
 	ajax.get_json('network.json').then(function (net) {
+	    if (Object.keys(net).length === 0) {
+		var div = document.getElementById('wired');
+		div.innerHTML = "<h3>Not supported on this platform</h3>";
+		div = document.getElementById('wireless');
+		div.innerHTML = "<h3>Not supported on this platform</h3>";
+	    }
+	    return;
 	    form_handler.fill("wireless-form", net["wireless"]);
 	    show_hide_static_options();
 	});

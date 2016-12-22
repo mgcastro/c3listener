@@ -186,6 +186,7 @@ static void network_json(struct evhttp_request *req, void *arg) {
     json_object_put(jobj);
 #else
     evbuffer_add_printf(buf, "{}");
+    evhttp_send_reply(req, 200, "OK", buf);
 #endif /* HAVE_UCI */
 }
 
