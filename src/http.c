@@ -34,8 +34,8 @@
 #include "udp.h"
 
 #ifdef HAVE_UCI
-#include <uci.h>
 #include "uci.h"
+#include <uci.h>
 #endif
 
 #ifdef HAVE_LIBMAGIC

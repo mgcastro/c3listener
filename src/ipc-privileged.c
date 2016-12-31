@@ -138,7 +138,7 @@ void ipc_parent_readcb(struct bufferevent *bev, void *ctx) {
             case CONFIG_NOT_FOUND:
             case CONFIG_CONF_NOT_FOUND:
 #ifdef HAVE_UCI
-	    case CONFIG_UCI_NOT_FOUND:
+            case CONFIG_UCI_NOT_FOUND:
             case CONFIG_UCI_NO_SECTION:
             case CONFIG_UCI_LOOKUP_FAIL:
 #endif /* HAVE_UCI */

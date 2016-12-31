@@ -59,23 +59,29 @@ file(GLOB c3listener_SRC
     "src/udp.c"
 )
 
+if (UCI_FOUND)
+  list (APPEND c3listener_SRC "src/uci.c")
+else(LIBUCI_FOUND)
+  message(STATUS "UCI Disabled")
+endif (UCI_FOUND)
+
 add_definitions(-DSYSCONFDIR=\"${CMAKE_INSTALL_PREFIX}/etc\"
                 -DWEBROOT=\"${CMAKE_INSTALL_PREFIX}/share/c3listener/web\"
 		-DPACKAGE_VERSION=\"${PACKAGE_VERSION}\" -D_GNU_SOURCE)
 add_executable(c3listener ${c3listener_SRC})
 target_link_libraries(c3listener m ${CONFIG_LIBRARY} ${BLUEZ_LIBRARY} ${JSONC_LIBRARY} ${LIBEVENT_LIB}
 		      ${LIBEVHTP_LIB})
+
+if (UCI_FOUND)
+  target_link_libraries (c3listener ${UCI_LIBRARY})
+  add_definitions(-DHAVE_UCI)
+endif (UCI_FOUND)
+
 if (LIBMAGIC_FOUND)
   include_directories(${LibMagic_INCLUDE_DIR})
   target_link_libraries (c3listener ${LibMagic_LIBRARY})
   add_definitions(-DHAVE_LIBMAGIC)
 endif (LIBMAGIC_FOUND)
-
-if (LIBUCI_FOUND)
-  target_link_libraries (c3listener ${UCI_LIBRARY})
-  add_definitions(-DHAVE_UCI)
-  add_source (c3listener "src/uci.c")
-endif (LIBUCI_FOUND)
 
 install (TARGETS c3listener DESTINATION bin)
 install (FILES c3listener.conf DESTINATION etc)
