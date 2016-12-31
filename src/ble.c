@@ -208,14 +208,16 @@ void ble_readcb(struct bufferevent *bev, void *ptr) {
                 goto skip;
             }
 
-#if 1
+#if 0
             log_notice("HCI Num Report: %d/%d", i + 1, hdr_buf.num_reports);
             log_notice("LE Report Event Type: %d", rpt->evt_type);
             log_notice("HCI Addr Type: %d", rpt->addr_type);
+#endif
+#if 1
             char *mac_s = hexlify(rpt->addr, 6);
             log_notice("MAC: %s", mac_s);
             free(mac_s);
-            log_notice("Len: %d\n", rpt->data_len);
+            //log_notice("Len: %d\n", rpt->data_len);
             char *pkt_s = hexlify(rpt->data, rpt->data_len);
             log_notice("Packet: %s", pkt_s);
             free(pkt_s);
@@ -244,7 +246,7 @@ void ble_readcb(struct bufferevent *bev, void *ptr) {
                 /* Lookup beacon */
                 b = ibeacon_find_or_add(uuid, major, minor);
             }
-            log_notice("TX_PWR: %d", tx_power);
+            //log_notice("TX_PWR: %d", tx_power);
             int8_t cor_rssi = rpt->rssi + config_get_antenna_correction();
             double flt_rssi = kalman(b, cor_rssi, ts);
             log_notice("RSSI: %d->%d->%f", rpt->rssi, cor_rssi, flt_rssi);
