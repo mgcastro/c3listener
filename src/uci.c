@@ -131,6 +131,14 @@ int uci_simple_set(char *key, char *value) {
             free(error);
             return CONFIG_UCI_SAVE_FAIL;
         }
+        if (uci_commit(uci_ctx, &ptr.p, TRUE) != UCI_OK) {
+            char *error = calloc(1, 256);
+            uci_get_errorstr(uci_ctx, &error, NULL);
+            log_error("Failed to commit %s: %s\n", tuple, error);
+            free(tuple);
+            free(error);
+            return CONFIG_UCI_COMMIT_FAIL;
+        }
         log_notice("Reset required");
         free(tuple);
         return CONFIG_OK;

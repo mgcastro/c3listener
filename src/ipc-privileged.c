@@ -160,6 +160,7 @@ void ipc_parent_readcb(struct bufferevent *bev, void *ctx) {
                 break;
             case CONFIG_UCI_SET_FAIL:
             case CONFIG_UCI_SAVE_FAIL:
+            case CONFIG_UCI_COMMIT_FAIL:
                 r->code = 503;
                 if (sprintf(r->resp, "Error saving %s via uci.", key) < 0) {
                     log_error("Unable to allocate memory");
