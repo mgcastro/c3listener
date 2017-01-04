@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define VERSION "v1.3.11-b7"
+#define VERSION "v1.4.0"
 
 #define UNUSED(x) (void)(x)
 
