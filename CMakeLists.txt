@@ -48,6 +48,7 @@ file(GLOB c3listener_SRC
     "src/ble.c"
     "src/config.c"
     "src/hash.c"
+    "src/hostname.c"
     "src/http.c"
     "src/ipc.c"
     "src/ipc-privileged.c"

@@ -28,6 +28,7 @@
 #include "beacon.h"
 #include "ble.h"
 #include "config.h"
+#include "hostname.h"
 #include "http.h"
 #include "ipc.h"
 #include "time_util.h"
@@ -139,7 +140,7 @@ static void server_json(struct evhttp_request *req, void *arg) {
     config_refresh();
     json_object *jobj = json_object_new_object();
     json_object_object_add(jobj, "listener_id",
-                           json_object_new_string(hostname));
+                           json_object_new_string(hostname_get()));
     json_object_object_add(jobj, "last_seen",
                            json_object_new_string("Not implemented"));
     json_object_object_add(

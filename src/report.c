@@ -15,6 +15,7 @@
 
 #include "beacon.h"
 #include "config.h"
+#include "hostname.h"
 #include "kalman.h"
 #include "log.h"
 #include "report.h"
@@ -24,8 +25,7 @@
 #define BEACON_REPORT_SIZE (16 + sizeof(uint16_t) * 3 + sizeof(int16_t) * 2)
 
 static uint8_t *p_buf = NULL;
-static int p_buf_pos = 0, b_count = 0, p_buf_size = 0, hostlen = 0;
-char hostname[HOSTNAME_MAX_LEN + 1] = {0};
+static int p_buf_pos = 0, b_count = 0, p_buf_size = 0;
 static struct bufferevent *udp_bev;
 int count = 0;
 
@@ -53,42 +53,6 @@ void report_cb(int a, short b, void *self) {
     }
 }
 
-static bool is_hex(char c) {
-    static char _map[] = "0123456789abcdef";
-    for (uint_fast8_t i = 0; i < strlen(_map); i++) {
-        if (_map[i] == c) {
-            return true;
-        }
-    }
-    return false;
-}
-
-static uint8_t u8_from_hex(char *hex) {
-    /* Converts char[2] to a uint8_t */
-    static uint8_t hex_map[] = {['0'] = 0,  1,  2,          3,  4,  5,  6,  7,
-                                8,          9,  ['a'] = 10, 11, 12, 13, 14, 15,
-                                ['A'] = 10, 11, 12,         13, 14, 15};
-    return hex_map[(uint8_t)hex[0]] << 4 | hex_map[(uint8_t)hex[1]];
-}
-
-static uint8_t *hostname_to_bytes(char *hostname, int length) {
-    /* If hostname looks like mac address, then try to encode in fewer
-       bits to appease Steve */
-    if (length != 12) {
-        return NULL;
-    }
-    for (int i = 0; i < length; i++) {
-        if (!is_hex(hostname[i])) {
-            return NULL;
-        }
-    }
-    uint8_t *buf = calloc(1, 7); // Six mac bytes plus a null
-    for (int i = 0, j = 0; i < length; i += 2) {
-        buf[j++] = u8_from_hex(&hostname[i]);
-    }
-    return buf;
-}
-
 void report_clear(void) {
     memset(p_buf, 0, p_buf_size);
     p_buf_pos = 0;
@@ -97,16 +61,9 @@ void report_clear(void) {
 
 void report_init(struct bufferevent *bev) {
     udp_bev = bev;
-    gethostname(hostname, HOSTNAME_MAX_LEN);
-    hostlen = strnlen(hostname, HOSTNAME_MAX_LEN);
-    uint8_t *mac = hostname_to_bytes(hostname, hostlen);
-    if (mac) {
-        memcpy(hostname, mac, 7);
-        hostlen = 6;
-        free(mac);
-    }
     if (p_buf == NULL) {
-        p_buf_size = hostlen + BEACON_REPORT_SIZE * (b_count + 1);
+        p_buf_size =
+            hostname_get_bytes_length() + BEACON_REPORT_SIZE * (b_count + 1);
         p_buf = malloc(p_buf_size);
     }
     memset(p_buf, 0, p_buf_size);
@@ -115,6 +72,8 @@ void report_init(struct bufferevent *bev) {
 }
 
 void report_header(int version, int packet_type) {
+    uint8_t const *const hostname = hostname_get_bytes();
+    uint8_t hostlen = hostname_get_bytes_length();
     p_buf[0] = version << 4 | packet_type;
     p_buf[1] = BEACON_REPORT_SIZE;
     p_buf[2] = hostlen;
@@ -123,12 +82,12 @@ void report_header(int version, int packet_type) {
     return;
 }
 
-int report_length(void) {
+size_t report_length(void) {
     return p_buf_pos;
 }
 
-int report_header_length(void) {
-    return hostlen + 3;
+size_t report_header_length(void) {
+    return hostname_get_bytes_length() + 3;
 }
 
 size_t report_free_bytes(void) {
